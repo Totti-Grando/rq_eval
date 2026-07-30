@@ -1,7 +1,7 @@
 # scoring
 
-**Design ref:** §0.5.4 replay guarantee (formulas + registry land here in B3);
-the statistical library (Wilson CI, bands, off-ask cap, min-n) is added in B5.
+**Design ref:** §0.5.4 replay guarantee (formulas + registry, B3) + the
+statistical library (Wilson CI, band map, off-ask cap, min-n abstention, B5).
 
 **Purpose:** the pure-math layer. Every number in an output is produced here
 from atom booleans/weights. Dimensions compute their score *through* a
@@ -14,14 +14,21 @@ replayable. **No model or provider code is ever imported here.**
 - `MeanFormula` — [code] fraction of true verdicts.
 - `WeightedMeanFormula` — [code] weight-normalized mean of verdicts.
 - `ConjunctionWeightedMeanFormula` — [code] accuracy's per-subject AND then weighted mean.
+- `WilsonInterval` — [code] Wilson 95% CI for a proportion.
+- `BandMapper` — [code] score → G/A/R.
+- `OffAskCap` — [code] cap a relevance score when the ask is missed.
+- `MinNAbstention` — [code] abstain when n < min_n.
 
 **Calculations:**
 - `mean = (Σ verdict) / n` over n atoms (0 if n = 0).
 - `weighted_mean = (Σ verdict·w) / (Σ w)` (0 if Σw = 0).
 - `conjunction_weighted_mean`: for each subject, `correct = AND(verdicts)`;
   `score = (Σ correct·w) / (Σ w)` with one weight per subject.
-- _(B5 adds:_ Wilson 95% CI, band map `≥G→"G", ≥A→"A", else "R"`, off-ask cap,
-  min-n abstention.)
+- Wilson CI: `center = (p̂ + z²/2n)/(1+z²/n)`,
+  `half = (z/(1+z²/n))·sqrt(p̂(1-p̂)/n + z²/4n²)`; `p̂ = successes/n`, z = 1.96.
+- band map: `score ≥ G → "G"; score ≥ A → "A"; else "R"`.
+- off-ask cap: `on_ask ? score : min(score, cap)`.
+- min-n abstention: abstain iff `n < min_n`.
 
 **Determinism:** everything replays bit-for-bit — pure functions of the atoms,
 no randomness, no I/O.

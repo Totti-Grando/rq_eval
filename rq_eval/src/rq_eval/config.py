@@ -97,6 +97,7 @@ class RelevanceConfig(BaseModel):
     model_config = _Strict
     method: Literal["A", "B", "both"]
     reverse_questions_n: int = Field(ge=1)
+    off_ask_cap: float = Field(ge=0.0, le=1.0)
 
 
 class PipelineConfig(BaseModel):
