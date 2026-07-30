@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from rq_eval.audit.atom_logger import AtomLogger
-from rq_eval.contracts import Tier
+from rq_eval.contracts import AtomRecord, Tier
 from rq_eval.providers.base import JudgeProvider
 
 
@@ -34,10 +34,10 @@ class JudgeGrader:
         context: str,
         weight: float = 1.0,
         tier: Tier = "T3",
-    ) -> bool:
-        """Call the judge, record an atom, and return the boolean verdict."""
+    ) -> AtomRecord:
+        """Call the judge, record an atom, and return it (``.verdict`` is the bool)."""
         verdict = self._judge.binary(question, context)
-        self._logger.record(
+        return self._logger.record(
             subject=subject,
             role=role,
             question=question,
@@ -50,4 +50,3 @@ class JudgeGrader:
             model_version=self._version,
             seed=self._seed,
         )
-        return verdict.verdict

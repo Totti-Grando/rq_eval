@@ -56,10 +56,11 @@ Rows are added as each phase lands its folder (per the addendum).
 | formulas + registry (replay-critical; B5 adds CI/bands) | `src/rq_eval/scoring` | B3 ✔ |
 | §0 shared claim-extraction pipeline | `src/rq_eval/pipeline` | B4 ✔ |
 | tier adapters (T1 tools, T2/T3 graders) | `src/rq_eval/graders` | B5 ✔ |
+| dimension base + shared responsiveness | `src/rq_eval/dimensions` | B6 ✔ |
+| §3 relevance | `src/rq_eval/dimensions/relevance` | B6 ✔ |
 
-_Planned (added in their phase): dimension base `dimensions/`,
-§1 `dimensions/accuracy/`, §2 `dimensions/completeness/`,
-§3 `dimensions/relevance/`, §4 `dimensions/task_success/`._
+_Planned (added in their phase): §1 `dimensions/accuracy/`,
+§2 `dimensions/completeness/`, §4 `dimensions/task_success/`._
 
 ## Build status
 

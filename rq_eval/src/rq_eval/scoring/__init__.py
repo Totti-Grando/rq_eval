@@ -10,6 +10,7 @@ from rq_eval.scoring.bands import BandMapper
 from rq_eval.scoring.formulas import (
     ConjunctionWeightedMeanFormula,
     MeanFormula,
+    RelevanceCappedMeanFormula,
     WeightedMeanFormula,
     default_registry,
 )
@@ -24,6 +25,7 @@ __all__ = [
     "MeanFormula",
     "MinNAbstention",
     "OffAskCap",
+    "RelevanceCappedMeanFormula",
     "WeightedMeanFormula",
     "WilsonInterval",
     "default_registry",

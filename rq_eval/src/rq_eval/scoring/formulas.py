@@ -65,10 +65,35 @@ class ConjunctionWeightedMeanFormula(Formula):
         return sum(weight[s] for s, ok in correct.items() if ok) / total
 
 
+class RelevanceCappedMeanFormula(Formula):
+    """§3 relevance: mean of responsive atoms, off-ask capped, abstain-aware.
+
+    Reads three atom roles so it replays purely from the logged atoms:
+    * ``abstain_relevant`` (verdict True) -> score 1.0 (proper decline);
+    * ``responsive`` atoms -> ``base = mean(verdicts)``;
+    * ``on_ask_answer`` atom -> if its verdict is False, cap: ``min(base, w)``
+      where the cap value travels as that atom's ``weight``.
+    """
+
+    formula_id = "relevance_capped_mean"
+
+    def compute(self, atoms: list[AtomRecord]) -> float:
+        """Compute the capped, abstain-aware mean from the atoms alone."""
+        if any(a.role == "abstain_relevant" and a.verdict for a in atoms):
+            return 1.0
+        responsive = [a for a in atoms if a.role == "responsive"]
+        base = (sum(1 for a in responsive if a.verdict) / len(responsive)) if responsive else 0.0
+        on_ask = [a for a in atoms if a.role == "on_ask_answer"]
+        if on_ask and not on_ask[0].verdict:
+            return min(base, on_ask[0].weight)
+        return base
+
+
 def default_registry() -> FormulaRegistry:
     """Build a registry with the replay-critical formulas registered."""
     registry = FormulaRegistry()
     registry.register(MeanFormula())
     registry.register(WeightedMeanFormula())
     registry.register(ConjunctionWeightedMeanFormula())
+    registry.register(RelevanceCappedMeanFormula())
     return registry

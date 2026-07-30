@@ -7,6 +7,7 @@ applies ``relevance_tau`` to produce the boolean and logs both.
 from __future__ import annotations
 
 from rq_eval.audit.atom_logger import AtomLogger
+from rq_eval.contracts import AtomRecord
 from rq_eval.providers.base import RelevanceProvider
 
 
@@ -36,11 +37,11 @@ class RelevanceGrader:
 
     def check(
         self, *, subject: str, role: str, query: str, response: str, weight: float = 1.0
-    ) -> bool:
-        """Raw = provider.score(query, response); verdict = raw ≥ tau; log; return."""
+    ) -> AtomRecord:
+        """Raw = provider.score(query, response); verdict = raw ≥ tau; log; return atom."""
         raw = self._relevance.score(query, response)
         verdict = raw >= self._tau
-        self._logger.record(
+        return self._logger.record(
             subject=subject,
             role=role,
             question=f"relevant? (tau={self._tau})",
@@ -53,4 +54,3 @@ class RelevanceGrader:
             model_version=self._version,
             seed=self._seed,
         )
-        return verdict

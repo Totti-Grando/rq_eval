@@ -8,6 +8,7 @@ where float→boolean thresholding lives — never in the provider.
 from __future__ import annotations
 
 from rq_eval.audit.atom_logger import AtomLogger
+from rq_eval.contracts import AtomRecord
 from rq_eval.providers.base import GroundingProvider
 
 
@@ -33,11 +34,11 @@ class GroundingGrader:
 
     def check(
         self, *, subject: str, role: str, source: str, claim: str, weight: float = 1.0
-    ) -> bool:
-        """Raw = provider.check(source, claim); verdict = raw ≥ tau; log; return."""
+    ) -> AtomRecord:
+        """Raw = provider.check(source, claim); verdict = raw ≥ tau; log; return atom."""
         raw = self._grounding.check(source, claim).raw_score
         verdict = raw >= self._tau
-        self._logger.record(
+        return self._logger.record(
             subject=subject,
             role=role,
             question=f"grounded? (tau={self._tau})",
@@ -50,4 +51,3 @@ class GroundingGrader:
             model_version=self._version,
             seed=self._seed,
         )
-        return verdict
