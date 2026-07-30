@@ -51,11 +51,14 @@ Rows are added as each phase lands its folder (per the addendum).
 | build order B2 — provider interfaces + factory | `src/rq_eval/providers` | B2 ✔ |
 | build order B2 — deterministic mocks | `src/rq_eval/providers/mock` | B2 ✔ |
 | build order B2 — live Bedrock/spaCy/fairseq | `src/rq_eval/providers/live` | B2 ✔ |
+| §0.5 contracts (records) | `src/rq_eval/contracts.py` | B3 ✔ |
+| §0.5 audit (atom log + replay) | `src/rq_eval/audit` | B3 ✔ |
+| formulas + registry (replay-critical; B5 adds CI/bands) | `src/rq_eval/scoring` | B3 ✔ |
 
-_Planned (added in their phase): §0 `pipeline/`, §0.5 `contracts.py` + `audit/`,
-tier adapters `graders/`, formulas `scoring/`, dimension base `dimensions/`,
-§1 `dimensions/accuracy/`, §2 `dimensions/completeness/`,
-§3 `dimensions/relevance/`, §4 `dimensions/task_success/`._
+_Planned (added in their phase): §0 `pipeline/`, tier adapters `graders/`,
+dimension base `dimensions/`, §1 `dimensions/accuracy/`,
+§2 `dimensions/completeness/`, §3 `dimensions/relevance/`,
+§4 `dimensions/task_success/`._
 
 ## Build status
 
