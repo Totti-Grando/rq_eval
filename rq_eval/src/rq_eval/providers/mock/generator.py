@@ -3,11 +3,15 @@
 Reproducible text for the pinned generative steps. An optional leading
 ``[[tag]]`` selects the rule:
 
-* ``[[echo]]``       -> returns the prompt body unchanged
-* ``[[sentences]]``  -> splits the body into sentence ``items``
-* ``[[repeat]]``     -> ``items`` = ``n`` copies of the body (used by Method-A
+* ``[[echo]]``       -> returns the payload unchanged
+* ``[[sentences]]``  -> splits the payload into sentence ``items``
+* ``[[repeat]]``     -> ``items`` = ``n`` copies of the payload (used by Method-A
                         reverse-questions: questions derived from the answer)
 * (no tag)           -> echo
+
+The "payload" is the text inside ``{{ ... }}`` if present (so a live-friendly
+natural-language instruction can wrap the content), else the whole body. Live
+providers strip the tag and unwrap ``{{ }}`` before calling the model.
 
 Emits text only, never a number.
 """
@@ -19,6 +23,7 @@ import re
 from rq_eval.providers.base import GenerationResult, GeneratorProvider
 
 _TAG = re.compile(r"^\s*\[\[([^\]]+)\]\]\s*(.*)$", re.DOTALL)
+_PAYLOAD = re.compile(r"\{\{(.*?)\}\}", re.DOTALL)
 _SENT = re.compile(r"(?<=[.!?])\s+")
 
 
@@ -32,7 +37,8 @@ class MockGeneratorProvider(GeneratorProvider):
     def generate(self, prompt: str, *, seed: int, n: int = 1) -> GenerationResult:
         """Return deterministic text/items per the optional ``[[tag]]`` rule."""
         tag, body = self._parse(prompt)
-        body = body.strip()
+        payload = _PAYLOAD.search(body)
+        body = (payload.group(1) if payload else body).strip()
         if tag == "sentences":
             items = [s.strip() for s in _SENT.split(body) if s.strip()]
             return GenerationResult(text=body, items=items)

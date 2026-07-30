@@ -99,6 +99,13 @@ class RelevanceConfig(BaseModel):
     reverse_questions_n: int = Field(ge=1)
 
 
+class PipelineConfig(BaseModel):
+    """§0 knobs — claim-extraction stability harness."""
+
+    model_config = _Strict
+    stability_runs: int = Field(ge=1)
+
+
 class PinsConfig(BaseModel):
     """Frozen reference versions (reproducibility fence, §0.5.5)."""
 
@@ -142,6 +149,7 @@ class Config(BaseModel):
     completeness: CompletenessConfig
     accuracy: AccuracyConfig
     relevance: RelevanceConfig
+    pipeline: PipelineConfig
     pins: PinsConfig
     seeds: SeedsConfig
     paths: PathsConfig

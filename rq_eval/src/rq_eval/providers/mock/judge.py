@@ -9,9 +9,13 @@ phases can make the mock behave sensibly without any model:
 * ``[[overlap]]``         -> True iff >=50% of the question's content tokens
                              appear in the context
 * ``[[overlap:<tau>]]``   -> same with an explicit coverage threshold
+* ``[[verifiable]]``      -> True iff the context reads like a checkable claim
+                             (>=3 content tokens, no hedge word, not a question)
 * (no tag)                -> deterministic seeded-hash bit
 
 There is no numeric output — this satisfies the booleans-only judge interface.
+Live providers strip the leading ``[[tag]]`` before calling the model, so the
+tags are a mock-only control channel.
 """
 
 from __future__ import annotations
@@ -22,6 +26,10 @@ from rq_eval.providers.base import JudgeProvider, JudgeVerdict
 from rq_eval.providers.mock.deterministic_text import DeterministicText
 
 _TAG = re.compile(r"^\s*\[\[([^\]]+)\]\]\s*(.*)$", re.DOTALL)
+_HEDGE = frozenset(
+    "maybe perhaps think believe arguably possibly might opinion feel seems "
+    "probably likely guess suppose".split()
+)
 
 
 class MockJudgeProvider(JudgeProvider):
@@ -42,8 +50,17 @@ class MockJudgeProvider(JudgeProvider):
             tau = self._tau(tag, default=0.5)
             cov = self._dt.overlap(body, context)
             return JudgeVerdict(cov >= tau, f"mock:overlap cov={cov:.3f} tau={tau:.3f}")
+        if tag == "verifiable":
+            return self._verifiable(context)
         bit = self._dt.bit(question, context)
         return JudgeVerdict(bit, "mock:seeded")
+
+    def _verifiable(self, context: str) -> JudgeVerdict:
+        toks = self._dt.tokens(context)
+        hedged = any(t in _HEDGE for t in toks)
+        is_question = context.strip().endswith("?")
+        ok = len(toks) >= 3 and not hedged and not is_question
+        return JudgeVerdict(ok, f"mock:verifiable n={len(toks)} hedged={hedged} q={is_question}")
 
     @staticmethod
     def _parse(question: str) -> tuple[str | None, str]:

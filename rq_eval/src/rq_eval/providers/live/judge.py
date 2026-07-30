@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 from rq_eval.providers.base import JudgeProvider, JudgeVerdict
 from rq_eval.providers.live.bedrock_session import BedrockSession
+from rq_eval.providers.live.prompt_prep import PromptPrep
 
 if TYPE_CHECKING:
     from rq_eval.config import Config
@@ -30,13 +31,14 @@ class BedrockJudgeProvider(JudgeProvider):
 
     def binary(self, question: str, context: str) -> JudgeVerdict:
         """Ask the model a yes/no question; parse YES/NO to a boolean verdict."""
+        clean_q = PromptPrep.clean(question)
         resp = self._session.runtime().converse(
             modelId=self._cfg.models.judge_id,
             system=[{"text": _SYSTEM}],
             messages=[
                 {
                     "role": "user",
-                    "content": [{"text": f"QUESTION:\n{question}\n\nCONTEXT:\n{context}"}],
+                    "content": [{"text": f"QUESTION:\n{clean_q}\n\nCONTEXT:\n{context}"}],
                 }
             ],
             inferenceConfig={"temperature": 0.0, "maxTokens": 200},

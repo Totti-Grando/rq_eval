@@ -54,11 +54,11 @@ Rows are added as each phase lands its folder (per the addendum).
 | §0.5 contracts (records) | `src/rq_eval/contracts.py` | B3 ✔ |
 | §0.5 audit (atom log + replay) | `src/rq_eval/audit` | B3 ✔ |
 | formulas + registry (replay-critical; B5 adds CI/bands) | `src/rq_eval/scoring` | B3 ✔ |
+| §0 shared claim-extraction pipeline | `src/rq_eval/pipeline` | B4 ✔ |
 
-_Planned (added in their phase): §0 `pipeline/`, tier adapters `graders/`,
-dimension base `dimensions/`, §1 `dimensions/accuracy/`,
-§2 `dimensions/completeness/`, §3 `dimensions/relevance/`,
-§4 `dimensions/task_success/`._
+_Planned (added in their phase): tier adapters `graders/`, dimension base
+`dimensions/`, §1 `dimensions/accuracy/`, §2 `dimensions/completeness/`,
+§3 `dimensions/relevance/`, §4 `dimensions/task_success/`._
 
 ## Build status
 

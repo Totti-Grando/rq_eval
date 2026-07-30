@@ -1,0 +1,7 @@
+{
+  "version": "claim-extractor-v1",
+  "verifiable": "[[verifiable]] Can this statement be proven true or false? Exclude opinions, hedges, and hypotheticals.",
+  "disambiguate": "[[deny]] Is this statement ambiguous in a way that CANNOT be resolved from the surrounding context? Answer YES only if it must be flagged rather than interpreted.",
+  "extract": "[[sentences]] Extract each atomic factual proposition from the sentence, one per line. {{ {sentence} }}",
+  "decontextualized": "[[affirm]] Is this claim fully self-contained, with every pronoun and referent resolved?"
+}

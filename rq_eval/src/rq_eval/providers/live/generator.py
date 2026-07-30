@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 from rq_eval.providers.base import GenerationResult, GeneratorProvider
 from rq_eval.providers.live.bedrock_session import BedrockSession
+from rq_eval.providers.live.prompt_prep import PromptPrep
 
 if TYPE_CHECKING:
     from rq_eval.config import Config
@@ -27,9 +28,9 @@ class BedrockGeneratorProvider(GeneratorProvider):
 
     def generate(self, prompt: str, *, seed: int, n: int = 1) -> GenerationResult:
         """Generate text; if ``n`` > 1 return that many newline-split items."""
-        instruction = prompt
+        instruction = PromptPrep.clean(prompt)
         if n > 1:
-            instruction = f"{prompt}\n\nProduce exactly {n} items, one per line."
+            instruction = f"{instruction}\n\nProduce exactly {n} items, one per line."
         resp = self._session.runtime().converse(
             modelId=self._cfg.models.judge_id,
             system=[{"text": f"Deterministic generation. seed={seed}."}],
