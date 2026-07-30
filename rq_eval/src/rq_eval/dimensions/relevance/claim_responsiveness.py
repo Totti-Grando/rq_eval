@@ -68,7 +68,7 @@ class ClaimResponsiveness:
                 model_version=self._version,
                 seed=self._seed,
             )
-            export.set(claim.id, responsive, atom.id)
+            export.set(claim.id, atom)
             atoms.append(atom)
             if on_topic.verdict and not on_ask.verdict:  # thin residual (audit only)
                 self._residual.judge(

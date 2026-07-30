@@ -58,9 +58,10 @@ Rows are added as each phase lands its folder (per the addendum).
 | tier adapters (T1 tools, T2/T3 graders) | `src/rq_eval/graders` | B5 ✔ |
 | dimension base + shared responsiveness | `src/rq_eval/dimensions` | B6 ✔ |
 | §3 relevance | `src/rq_eval/dimensions/relevance` | B6 ✔ |
+| §1 accuracy | `src/rq_eval/dimensions/accuracy` | B7 ✔ |
 
-_Planned (added in their phase): §1 `dimensions/accuracy/`,
-§2 `dimensions/completeness/`, §4 `dimensions/task_success/`._
+_Planned (added in their phase): §2 `dimensions/completeness/`,
+§4 `dimensions/task_success/`._
 
 ## Build status
 

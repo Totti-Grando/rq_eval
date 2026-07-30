@@ -32,6 +32,10 @@ class GroundingGrader:
         self._grader_id = grader_id
         self._seed = seed
 
+    def raw(self, source: str, claim: str) -> float:
+        """Return the raw grounding score without logging (for diagnostics)."""
+        return self._grounding.check(source, claim).raw_score
+
     def check(
         self, *, subject: str, role: str, source: str, claim: str, weight: float = 1.0
     ) -> AtomRecord:
