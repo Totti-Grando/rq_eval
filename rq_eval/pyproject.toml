@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rq_eval"
+version = "0.1.0"
+description = "Response Quality evaluation program — booleans-only, replayable, offline-first."
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic==2.13.4",
+    "PyYAML==6.0.3",
+    "numpy==2.5.1",
+    "scipy==1.18.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.mypy]
+strict = true
+mypy_path = "src"
+packages = ["rq_eval"]
+python_version = "3.11"
+# Live-only third-party libs have no stubs and are import-guarded; don't fail on them.
+[[tool.mypy.overrides]]
+module = ["boto3", "botocore.*", "spacy", "coreferee", "ragas.*", "torch", "fairseq.*"]
+ignore_missing_imports = true
+
+[tool.ruff]
+src = ["src", "tests"]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "D"]
+ignore = ["D203", "D213"]  # incompatible docstring conventions; pick the other of each pair
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D"]          # tests don't require docstrings
+"smoke_test.py" = ["D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"

@@ -1,0 +1,19 @@
+# rq_eval — OFFLINE CORE dependencies.
+# Pinned to versions verified to install on BOTH Python 3.11 (target machine)
+# and Python 3.14 (this dev machine). These alone are enough to build, run, and
+# test the entire program in providers.mode == mock, with NO network access.
+#
+# Heavy LIVE-only deps (boto3, spaCy, coreferee, fairseq/torch, ragas) live in
+# requirements-live.txt and are installed by install.sh on the target machine.
+
+pydantic==2.13.4
+PyYAML==6.0.3
+numpy==2.5.1
+scipy==1.18.0
+
+# --- dev / test toolchain ---
+pytest==9.1.1
+hypothesis==6.164.0
+mypy==2.3.0
+ruff==0.16.1
+types-PyYAML==6.0.12.20260724

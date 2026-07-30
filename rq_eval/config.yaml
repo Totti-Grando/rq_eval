@@ -1,0 +1,65 @@
+# rq_eval — THE single source of truth for every environment + tuning value.
+#
+# Moving machines == edit THIS file (+ .env for secrets), then run
+# install.sh and smoke_test.py. No model id, region, endpoint, threshold,
+# seed, band, or path is hard-coded anywhere else in the codebase
+# (enforced by tests/test_config_single_source.py).
+#
+# Every key below is REQUIRED: deleting one makes config loading fail loudly
+# (pydantic ValidationError), by design — all knobs live here, visibly.
+
+providers:
+  mode: mock                 # mock | live   (mock == fully offline, no AWS)
+
+aws:
+  region: us-east-1
+  profile: default
+
+models:
+  judge_id: anthropic.claude-3-5-sonnet-20241022-v2:0   # Bedrock Claude (judge)
+  embed_id: amazon.titan-embed-text-v2:0                # Titan embeddings
+  guardrail_id: ""           # set on target from Bedrock console (empty ok in mock)
+  guardrail_version: DRAFT   # guardrail version/alias
+  nli: mock                  # mock | bedrock | fairseq  (grounding/NLI backend)
+
+thresholds:
+  relevance_tau: 0.5         # query<->response relevance cutoff (Methods A/B)
+  grounding_tau: 0.5         # grounding raw_score -> grounded boolean cutoff
+  attribution_tau: 0.5       # directional grounding vs the *cited* chunk cutoff
+  bands:                     # score -> band: >=G -> "G", >=A -> "A", else "R"
+    G: 0.90
+    A: 0.75
+
+completeness:
+  min_n: 10                  # abstain when < this many vital units
+  vital_weighting: true      # weight per-requirement recall by vitality
+  dedupe_tau: 0.85           # cosine cutoff for near-duplicate unit clustering
+
+accuracy:
+  importance_weighting: true # weight claims by vital/okay from completeness units
+  numeric_tolerance: 0.0     # relative tolerance for numeric exact-match (0 == strict)
+  residual_policy: nexa      # nexa | ravenpack (nexa -> source-adequacy~1, residue~0)
+
+relevance:
+  method: B                  # A | B | both  (B == deterministic-first default)
+  reverse_questions_n: 3     # Method A: questions generated from the answer
+
+pins:                        # frozen reference versions (reproducibility fence, §0.5)
+  extractor_version: claim-extractor-v1
+  nuggetizer_version: nuggetizer-v1
+  template_version: templates-v1
+
+seeds:                       # fixed seeds for every sampling step
+  judge: 1729
+  embedding: 20250730
+  reverse_questions: 41
+  dedupe: 7
+  stability: 99
+
+paths:
+  atom_log: runs/atoms.jsonl
+  atom_log_backend: jsonl                        # jsonl | sqlite
+  requirement_templates: config/requirement_templates.yaml
+  task_templates: config/task_templates.yaml
+  prompts: config/prompts
+  runs_dir: runs
