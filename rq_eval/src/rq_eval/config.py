@@ -121,6 +121,7 @@ class PinsConfig(BaseModel):
 
     model_config = _Strict
     extractor_version: str
+    triplet_extractor_version: str
     nuggetizer_version: str
     template_version: str
 

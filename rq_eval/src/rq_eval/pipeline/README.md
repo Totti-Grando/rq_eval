@@ -16,6 +16,8 @@ pinned by `pins.extractor_version`.
 - `Decontextualizer` — [T2 coref + T3] resolve references (context carried forward) and confirm self-containment.
 - `StabilityHarness` — re-run extraction N times, report claim-set agreement.
 - `ClaimPipeline` — orchestrates steps 1–5; returns `PipelineResult`.
+- `ClaimTripletExtractor` — [T3-gen] (Evidence & Truthfulness §0) decompose each claim into RefChecker-style S-P-O `Triplet`s (pinned by `triplet_extractor_version`).
+- `TripletStabilityHarness` — triplet-id set agreement across re-runs.
 
 **Calculations:**
 - `stability = |∩ claim-id sets| / |∪ claim-id sets|` over `pipeline.stability_runs`

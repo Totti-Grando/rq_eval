@@ -7,6 +7,8 @@ Reproducible text for the pinned generative steps. An optional leading
 * ``[[sentences]]``  -> splits the payload into sentence ``items``
 * ``[[repeat]]``     -> ``items`` = ``n`` copies of the payload (used by Method-A
                         reverse-questions: questions derived from the answer)
+* ``[[triplets]]``   -> parse-based S|P|O splitter (RefChecker-style; one item
+                        per conjunction-split part as "subject | predicate | object")
 * (no tag)           -> echo
 
 The "payload" is the text inside ``{{ ... }}`` if present (so a live-friendly
@@ -25,6 +27,7 @@ from rq_eval.providers.base import GenerationResult, GeneratorProvider
 _TAG = re.compile(r"^\s*\[\[([^\]]+)\]\]\s*(.*)$", re.DOTALL)
 _PAYLOAD = re.compile(r"\{\{(.*?)\}\}", re.DOTALL)
 _SENT = re.compile(r"(?<=[.!?])\s+")
+_CLAUSE = re.compile(r"\s+and\s+|;|,", re.IGNORECASE)
 
 
 class MockGeneratorProvider(GeneratorProvider):
@@ -44,7 +47,23 @@ class MockGeneratorProvider(GeneratorProvider):
             return GenerationResult(text=body, items=items)
         if tag == "repeat":
             return GenerationResult(text=body, items=[body] * max(1, n))
+        if tag == "triplets":
+            return GenerationResult(text=body, items=self._triplets(body))
         return GenerationResult(text=body, items=[body] if body else [])
+
+    @staticmethod
+    def _triplets(body: str) -> list[str]:
+        """Deterministic S|P|O split: one 'subject | predicate | object' per clause."""
+        out: list[str] = []
+        for part in _CLAUSE.split(body):
+            toks = part.split()
+            if not toks:
+                continue
+            subject = toks[0]
+            predicate = toks[1] if len(toks) > 1 else ""
+            obj = " ".join(toks[2:])
+            out.append(f"{subject} | {predicate} | {obj}")
+        return out
 
     @staticmethod
     def _parse(prompt: str) -> tuple[str | None, str]:

@@ -58,6 +58,44 @@ class Claim(BaseModel):
     citation: str | None = None  # cited chunk id, if any
 
 
+class Triplet(BaseModel):
+    """§0 (Evidence & Truthfulness) — a subject-predicate-object check unit.
+
+    RefChecker-style: each claim decomposes into triplets checked separately.
+    Carries provenance (claim id, citation, source pointer) so every verdict
+    traces back. ``text`` is the human-readable triplet phrase.
+    """
+
+    model_config = _Model
+    id: str
+    claim_id: str
+    subject: str
+    predicate: str
+    obj: str
+    text: str
+    citation: str | None = None
+    source_pointer: str = ""
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        claim_id: str,
+        subject: str,
+        predicate: str,
+        obj: str,
+        citation: str | None,
+        source_pointer: str,
+    ) -> Triplet:
+        """Build a triplet with a content-hash id (stable across runs)."""
+        text = " ".join(p for p in (subject, predicate, obj) if p).strip()
+        tid = "triplet:" + hashlib.sha256(f"{claim_id}|{text}".encode()).hexdigest()[:12]
+        return cls(
+            id=tid, claim_id=claim_id, subject=subject, predicate=predicate, obj=obj,
+            text=text, citation=citation, source_pointer=source_pointer,
+        )
+
+
 class AtomRecord(BaseModel):
     """§0.5.2 — the audit primitive; one immutable record per yes/no check.
 

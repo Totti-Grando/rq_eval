@@ -55,6 +55,7 @@ pipeline:                    # §0 claim-extraction pipeline
 
 pins:                        # frozen reference versions (reproducibility fence, §0.5)
   extractor_version: claim-extractor-v1
+  triplet_extractor_version: triplet-extractor-v1
   nuggetizer_version: nuggetizer-v1
   template_version: templates-v1
 
