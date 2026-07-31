@@ -84,6 +84,35 @@ def test_responsive_is_imported_not_recomputed(tmp_path: Path) -> None:
     assert result_false.score == pytest.approx(0.0)
 
 
+def test_grounded_imported_from_groundedness_export(tmp_path: Path) -> None:
+    """Flipping the imported grounded verdict changes accuracy (E3 wire)."""
+    from rq_eval.dimensions.groundedness.export import GroundednessExport
+
+    claims = [_claim("c1", "Real Madrid won the Champions League final.")]
+    ctx = [ContextChunk(id="chunk-1", text="Real Madrid won the Champions League final in 2024.")]
+    ei = EvalInput(question="q", answer="...", context=ctx)
+
+    def _run(grounded: bool, path: Path) -> float:
+        cfg = load_config()
+        store = JsonlAtomStore(path)
+        logger = AtomLogger(store, FixedClock())
+        gexport = GroundednessExport()
+        gexport.set(
+            "c1",
+            AtomRecord.create(subject="c1", role="grounded", question="grounded?", tier="T2",
+                              verdict=grounded),
+            [1.0 if grounded else 0.0],
+        )
+        dim = AccuracyDimension(
+            ProviderFactory(cfg).build(), cfg, logger, claims, _export(claims, responsive=True),
+            grounded_export=gexport,
+        )
+        return dim.evaluate(ei).score
+
+    assert _run(True, tmp_path / "t.jsonl") == pytest.approx(1.0)
+    assert _run(False, tmp_path / "f.jsonl") == pytest.approx(0.0)
+
+
 def test_numeric_mismatch_fails_claim(tmp_path: Path) -> None:
     claims = [_claim("c1", "Revenue was $1.2B.")]
     export = _export(claims, responsive=True)

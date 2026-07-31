@@ -15,6 +15,7 @@ from rq_eval.audit.atom_logger import AtomLogger
 from rq_eval.contracts import AtomRecord, Claim, ContextChunk
 from rq_eval.dimensions.accuracy.importance import ImportanceWeights
 from rq_eval.dimensions.accuracy.stubs import InferenceValidityStub, SourceQualityStub
+from rq_eval.dimensions.groundedness.export import GroundednessExport
 from rq_eval.dimensions.responsiveness import ResponsivenessExport
 from rq_eval.graders.grounding_grader import GroundingGrader
 from rq_eval.graders.judge_grader import JudgeGrader
@@ -38,6 +39,7 @@ class ClaimAccuracyDeps:
     logger: AtomLogger
     grounding_tau: float
     numeric_tolerance: float
+    grounded_export: GroundednessExport | None = None  # §1 import; None -> compute locally
 
 
 class ClaimAccuracy:
@@ -81,7 +83,11 @@ class ClaimAccuracy:
                     grader_id="accuracy.numeric", model=_CODE[0], model_version=_CODE[1],
                 )
             )
-        if not source_text:
+        # grounded: import the per-claim atom from groundedness (§1) when present
+        if d.grounded_export is not None and d.grounded_export.has(claim.id):
+            grounded = d.grounded_export.atom(claim.id)  # the SAME atom groundedness logged
+            out.append(grounded)
+        elif not source_text:
             # unsourced residual: truth-judge [T3]
             out.append(
                 d.residual_truth.judge(
@@ -90,10 +96,11 @@ class ClaimAccuracy:
                 )
             )
             return out
-        grounded = d.grounding.check(
-            subject=claim.id, role="grounded", source=source_text, claim=claim.text, weight=w
-        )
-        out.append(grounded)
+        else:
+            grounded = d.grounding.check(
+                subject=claim.id, role="grounded", source=source_text, claim=claim.text, weight=w
+            )
+            out.append(grounded)
         # inferred flag: grounded by the whole context but by no single chunk
         if grounded.verdict and chunks:
             max_single = max(d.grounding.raw(c.text, claim.text) for c in chunks)

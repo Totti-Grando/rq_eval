@@ -16,6 +16,7 @@ from rq_eval.dimensions.accuracy.claim_accuracy import ClaimAccuracy, ClaimAccur
 from rq_eval.dimensions.accuracy.importance import ImportanceWeights
 from rq_eval.dimensions.accuracy.stubs import InferenceValidityStub, SourceQualityStub
 from rq_eval.dimensions.base import Dimension
+from rq_eval.dimensions.groundedness.export import GroundednessExport
 from rq_eval.dimensions.responsiveness import ResponsivenessExport
 from rq_eval.graders.grounding_grader import GroundingGrader
 from rq_eval.graders.judge_grader import JudgeGrader
@@ -43,6 +44,7 @@ class AccuracyDimension(Dimension):
         claims: list[Claim],
         export: ResponsivenessExport,
         weights: ImportanceWeights | None = None,
+        grounded_export: GroundednessExport | None = None,
     ) -> None:
         """Assemble graders/stubs from injected providers + config."""
         self._cfg = cfg
@@ -65,6 +67,7 @@ class AccuracyDimension(Dimension):
                 inference=InferenceValidityStub(), weights=weights, logger=logger,
                 grounding_tau=cfg.thresholds.grounding_tau,
                 numeric_tolerance=cfg.accuracy.numeric_tolerance,
+                grounded_export=grounded_export,
             )
         )
         self._registry = default_registry()
