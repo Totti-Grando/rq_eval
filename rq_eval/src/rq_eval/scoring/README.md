@@ -18,6 +18,7 @@ replayable. **No model or provider code is ever imported here.**
 - `BandMapper` — [code] score → G/A/R.
 - `OffAskCap` — [code] cap a relevance score when the ask is missed.
 - `MinNAbstention` — [code] abstain when n < min_n.
+- `ConformalCalibrator` / `ConformalStratifier` — [code] split-conformal threshold + guarantee band (§5); marginal or per-stratum.
 
 **Calculations:**
 - `mean = (Σ verdict) / n` over n atoms (0 if n = 0).
@@ -29,6 +30,8 @@ replayable. **No model or provider code is ever imported here.**
 - band map: `score ≥ G → "G"; score ≥ A → "A"; else "R"`.
 - off-ask cap: `on_ask ? score : min(score, cap)`.
 - min-n abstention: abstain iff `n < min_n`.
+- conformal: `νᵢ = 1 − confidenceᵢ`; `k = ⌈(1−α)(n+1)⌉` (clamped to n);
+  `τ̂ = k-th smallest ν`; retain iff `confidence ≥ 1 − τ̂`; band `[1−α, 1−α+1/(n+1)]`.
 
 **Determinism:** everything replays bit-for-bit — pure functions of the atoms,
 no randomness, no I/O.

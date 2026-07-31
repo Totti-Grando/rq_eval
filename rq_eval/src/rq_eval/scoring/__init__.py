@@ -7,6 +7,11 @@ is added in B5. Everything in this package is a pure function of its inputs.
 
 from rq_eval.scoring.aggregation import MinNAbstention, OffAskCap
 from rq_eval.scoring.bands import BandMapper
+from rq_eval.scoring.conformal import (
+    ConformalCalibrator,
+    ConformalResult,
+    ConformalStratifier,
+)
 from rq_eval.scoring.formulas import (
     AchievedRatioFormula,
     ConjunctionWeightedMeanFormula,
@@ -23,6 +28,9 @@ from rq_eval.scoring.wilson import WilsonInterval
 __all__ = [
     "AchievedRatioFormula",
     "BandMapper",
+    "ConformalCalibrator",
+    "ConformalResult",
+    "ConformalStratifier",
     "ConjunctionWeightedMeanFormula",
     "Formula",
     "FormulaRegistry",
