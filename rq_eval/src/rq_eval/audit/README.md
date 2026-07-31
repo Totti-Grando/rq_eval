@@ -17,6 +17,7 @@ tampering).
 - `AtomStoreFactory` — config-selected store (`paths.atom_log_backend`).
 - `AtomLogger` — creates (via `AtomRecord.create`) + appends + returns an atom.
 - `ReplayVerifier` — recompute + compare stored scores.
+- `CalibrationStore` — [E7] pinned, per-stratum human-labeled calibration set for the conformal layer (§5).
 
 **Calculations:** none of its own — it *delegates* recomputation to `scoring/`'s
 formula registry. Replay check: `registry.compute(result.formula_id,

@@ -69,12 +69,20 @@ relevance:
 pipeline:                    # §0 claim-extraction pipeline
   stability_runs: 3          # re-run extraction N times; report claim-set agreement
 
+conformal:                   # §5 conformal factuality (statistical guarantee)
+  alpha: 0.05                # error budget; target confidence = 1 - alpha
+  min_calibration_n: 8       # abstain from the guarantee below this many points
+  per_stratum: false         # marginal (global) by default; true -> per-stratum thresholds
+  strata: [question_type, source_type]   # partition keys (used when per_stratum)
+  calibration_path: config/calibration/calibration-v1.jsonl
+
 pins:                        # frozen reference versions (reproducibility fence, §0.5)
   extractor_version: claim-extractor-v1
   triplet_extractor_version: triplet-extractor-v1
   nuggetizer_version: nuggetizer-v1
   template_version: templates-v1
   reliability_version: reliability-v1
+  calibration_version: calibration-v1
 
 seeds:                       # fixed seeds for every sampling step
   judge: 1729

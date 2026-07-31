@@ -105,6 +105,21 @@ class Triplet(BaseModel):
         )
 
 
+class CalibrationExample(BaseModel):
+    """A human-labeled conformal calibration point (§5 / E7).
+
+    ``label`` is the ground-truth factuality (True = supported); ``stratum`` is
+    the partition key (question-type / source-type) for per-stratum calibration.
+    """
+
+    model_config = _Model
+    id: str
+    claim: str
+    context: str
+    label: bool
+    stratum: str = "default"
+
+
 class AtomRecord(BaseModel):
     """§0.5.2 — the audit primitive; one immutable record per yes/no check.
 

@@ -1,0 +1,12 @@
+{"id": "cal-f1", "claim": "revenue rose sharply", "context": "quarterly revenue rose sharply on strong demand", "label": true, "stratum": "finance"}
+{"id": "cal-f2", "claim": "operating margin expanded", "context": "operating margin expanded by two points", "label": true, "stratum": "finance"}
+{"id": "cal-f3", "claim": "costs fell materially", "context": "input costs fell materially year over year", "label": true, "stratum": "finance"}
+{"id": "cal-f4", "claim": "pricing actions helped", "context": "pricing actions helped offset inflation", "label": true, "stratum": "finance"}
+{"id": "cal-f5", "claim": "the dividend tripled overnight", "context": "the weather in the region was mild", "label": false, "stratum": "finance"}
+{"id": "cal-f6", "claim": "the company relocated to mars", "context": "quarterly revenue rose sharply on demand", "label": false, "stratum": "finance"}
+{"id": "cal-s1", "claim": "the team won", "context": "the visiting team won a narrow away game", "label": true, "stratum": "sports"}
+{"id": "cal-s2", "claim": "the striker scored", "context": "the striker scored twice in the second half", "label": true, "stratum": "sports"}
+{"id": "cal-s3", "claim": "the match ended level", "context": "the coach praised the defense after training", "label": false, "stratum": "sports"}
+{"id": "cal-s4", "claim": "attendance broke records", "context": "the stadium roof was closed due to rain", "label": false, "stratum": "sports"}
+{"id": "cal-s5", "claim": "the keeper saved a penalty", "context": "an unrelated transfer rumor circulated online", "label": false, "stratum": "sports"}
+{"id": "cal-s6", "claim": "the captain lifted the trophy", "context": "the captain lifted the trophy at full time", "label": true, "stratum": "sports"}

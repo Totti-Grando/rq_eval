@@ -144,6 +144,17 @@ class PipelineConfig(BaseModel):
     stability_runs: int = Field(ge=1)
 
 
+class ConformalConfig(BaseModel):
+    """§5 knobs — coverage target, min-n, per-stratum toggle, calibration path."""
+
+    model_config = _Strict
+    alpha: float = Field(gt=0.0, lt=1.0)
+    min_calibration_n: int = Field(ge=1)
+    per_stratum: bool
+    strata: list[str]
+    calibration_path: str
+
+
 class PinsConfig(BaseModel):
     """Frozen reference versions (reproducibility fence, §0.5.5)."""
 
@@ -153,6 +164,7 @@ class PinsConfig(BaseModel):
     nuggetizer_version: str
     template_version: str
     reliability_version: str
+    calibration_version: str
 
 
 class SeedsConfig(BaseModel):
@@ -194,6 +206,7 @@ class Config(BaseModel):
     source_attribution: SourceAttributionConfig
     relevance: RelevanceConfig
     pipeline: PipelineConfig
+    conformal: ConformalConfig
     pins: PinsConfig
     seeds: SeedsConfig
     paths: PathsConfig
