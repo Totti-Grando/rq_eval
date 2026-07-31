@@ -49,6 +49,14 @@ hallucination:
   resolver: mock             # mock | live  (URL/DOI existence resolver for the fabrication gate)
   doi_registry_enabled: false
 
+source_quality:              # §3 the bridge to world factuality
+  reliability_list: config/reliability_list.yaml   # domain allow/deny oracle (human-maintained)
+  adequacy_threshold: 0.6    # source-adequate? = mean(properties) >= this
+  source_adequate_default: true   # Nexa profile: no source metadata -> adequate
+  corroboration_min: 2       # >= this many independent supporting sources
+  disinterest_sample_rate: 0.0    # fraction of sources judged for disinterest (0 -> assume true)
+  as_of_date: "2026-07-31"   # point-in-time window; sources must not be dated after this
+
 relevance:
   method: B                  # A | B | both  (B == deterministic-first default)
   reverse_questions_n: 3     # Method A: questions generated from the answer
@@ -62,6 +70,7 @@ pins:                        # frozen reference versions (reproducibility fence,
   triplet_extractor_version: triplet-extractor-v1
   nuggetizer_version: nuggetizer-v1
   template_version: templates-v1
+  reliability_version: reliability-v1
 
 seeds:                       # fixed seeds for every sampling step
   judge: 1729

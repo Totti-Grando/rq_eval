@@ -11,7 +11,8 @@ from §3 (never recomputes it).
 - `AccuracyDimension` — orchestrates the four booleans + composition → `DimensionResult`.
 - `ClaimAccuracy` (+ `ClaimAccuracyDeps`) — the per-claim booleans and residual/inferred handling.
 - `ImportanceWeights` — per-claim weight (vital/okay from §2; toggle).
-- `SourceQualityStub` / `InferenceValidityStub` — typed stubs for imported categories (Nexa defaults).
+- `InferenceValidityStub` — typed stub for the out-of-scope inference-validity category.
+- (grounded / source-adequate / attributed are now **imported** from groundedness §1 / the real `SourceQualityProvider` §3 / `AttributionProvider` §4.)
 
 **Calculations:**
 - Per claim: `correct = grounded ∧ source_adequate ∧ attributed ∧ responsive`.

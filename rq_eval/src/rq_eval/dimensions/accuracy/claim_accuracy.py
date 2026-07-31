@@ -14,12 +14,13 @@ from dataclasses import dataclass
 from rq_eval.audit.atom_logger import AtomLogger
 from rq_eval.contracts import AtomRecord, Claim, ContextChunk
 from rq_eval.dimensions.accuracy.importance import ImportanceWeights
-from rq_eval.dimensions.accuracy.stubs import InferenceValidityStub, SourceQualityStub
+from rq_eval.dimensions.accuracy.stubs import InferenceValidityStub
 from rq_eval.dimensions.groundedness.export import GroundednessExport
 from rq_eval.dimensions.responsiveness import ResponsivenessExport
 from rq_eval.graders.grounding_grader import GroundingGrader
 from rq_eval.graders.judge_grader import JudgeGrader
 from rq_eval.graders.t1 import T1Tools
+from rq_eval.providers.base import SourceQualityProvider
 
 _CODE = ("code", "rq_eval")
 _RESIDUAL_TRUTH = "[[affirm]] Is this claim true (no source available to ground against)?"
@@ -33,12 +34,13 @@ class ClaimAccuracyDeps:
     attribution: GroundingGrader
     residual_truth: JudgeGrader
     t1: T1Tools
-    source_quality: SourceQualityStub
+    source_quality: SourceQualityProvider  # real §3 provider (no more stub)
     inference: InferenceValidityStub
     weights: ImportanceWeights
     logger: AtomLogger
     grounding_tau: float
     numeric_tolerance: float
+    source_adequate_default: bool = True  # Nexa profile default when no cited source
     grounded_export: GroundednessExport | None = None  # §1 import; None -> compute locally
 
 
@@ -63,7 +65,7 @@ class ClaimAccuracy:
         atoms: list[AtomRecord] = []
 
         atoms.extend(self._grounded(claim, chunks, source_text, w))
-        atoms.append(self._source_adequate(claim, source_text, w))
+        atoms.append(self._source_adequate(claim, chunks, w))
         atoms.append(self._attributed(claim, cited, w))
         atoms.append(self._responsive(claim, export, w))
         return atoms
@@ -116,12 +118,21 @@ class ClaimAccuracy:
                 )
         return out
 
-    def _source_adequate(self, claim: Claim, source_text: str, w: float) -> AtomRecord:
-        adequate = self._d.source_quality.adequate(claim.text, source_text)
-        return self._d.logger.record(
+    def _source_adequate(
+        self, claim: Claim, chunks: list[ContextChunk], w: float
+    ) -> AtomRecord:
+        d = self._d
+        id2chunk = {c.id: c for c in chunks}
+        if claim.citation and claim.citation in id2chunk:
+            adequate = d.source_quality.adequate(id2chunk[claim.citation], claim.text, chunks)
+            evidence = "provider"
+        else:  # no cited source -> Nexa-profile default
+            adequate = d.source_adequate_default
+            evidence = "default"
+        return d.logger.record(
             subject=claim.id, role="source_adequate", question="source adequate?", tier="T1",
-            verdict=adequate, weight=w, evidence="stub", grader_id="accuracy.source_quality",
-            model="stub", model_version="nexa",
+            verdict=adequate, weight=w, evidence=evidence, grader_id="accuracy.source_quality",
+            model=_CODE[0], model_version=_CODE[1],
         )
 
     def _attributed(self, claim: Claim, cited: dict[str, str], w: float) -> AtomRecord:

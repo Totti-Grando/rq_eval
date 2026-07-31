@@ -108,6 +108,18 @@ class HallucinationConfig(BaseModel):
     doi_registry_enabled: bool
 
 
+class SourceQualityConfig(BaseModel):
+    """§3 knobs — reliability list, adequacy threshold, corroboration, freshness."""
+
+    model_config = _Strict
+    reliability_list: str
+    adequacy_threshold: float = Field(ge=0.0, le=1.0)
+    source_adequate_default: bool
+    corroboration_min: int = Field(ge=1)
+    disinterest_sample_rate: float = Field(ge=0.0, le=1.0)
+    as_of_date: str
+
+
 class RelevanceConfig(BaseModel):
     """§3 knobs — method selection and Method-A reverse-question count."""
 
@@ -132,6 +144,7 @@ class PinsConfig(BaseModel):
     triplet_extractor_version: str
     nuggetizer_version: str
     template_version: str
+    reliability_version: str
 
 
 class SeedsConfig(BaseModel):
@@ -169,6 +182,7 @@ class Config(BaseModel):
     accuracy: AccuracyConfig
     task_success: TaskSuccessConfig
     hallucination: HallucinationConfig
+    source_quality: SourceQualityConfig
     relevance: RelevanceConfig
     pipeline: PipelineConfig
     pins: PinsConfig

@@ -1,0 +1,20 @@
+# Source-reliability allow/deny oracle (§3 step 4) — the STRUCTURAL ORACLE for
+# domain reputation. Human-maintained + pinned (pins.reliability_version).
+# Rule: a domain on `deny` is unreliable; a domain on `allow` is reliable; a
+# domain on neither (with a non-empty allow-list) is treated as not-yet-vetted
+# (unreliable). Internal-corpus chunks (no domain) are reliable by construction.
+
+version: reliability-v1
+
+allow:
+  - nexa.internal
+  - reuters.com
+  - bloomberg.com
+  - sec.gov
+  - ft.com
+  - wsj.com
+
+deny:
+  - fakenews.example
+  - contentfarm.example
+  - randomblog.example

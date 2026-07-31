@@ -18,6 +18,8 @@ makes the whole program build, run, and test offline (`providers.mode: mock`).
 - `GroundingProvider` — [T2] three-way entailment `entails(premise, hypothesis) -> {label∈E|N|C, raw_score, supported}` (design §1/§6; one verifier, three premises).
 - `RelevanceProvider` — [T2] query↔response → raw score (thresholded in our code).
 - `NlpProvider` — [T1/T2] sentence segmentation + coref (spaCy/coreferee; mock = regex/identity).
+- `ResolverProvider` — [T1] reference existence (URL/DOI) for the fabrication gate (§2).
+- `SourceQualityProvider` — §3 `adequate(source, claim, sources) -> bool`; accuracy's source-adequate import.
 - `ProviderFactory` — config-selected construction; `Providers` — the injected bundle.
 
 **Calculations:** none in the interfaces. Mock heuristics live in `mock/`

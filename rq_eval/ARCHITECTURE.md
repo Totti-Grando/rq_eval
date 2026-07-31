@@ -65,6 +65,7 @@ Rows are added as each phase lands its folder (per the addendum).
 | Phase D — runner + report + fixtures | `src/rq_eval/runner.py` | B10 ✔ |
 | E&T §1 groundedness | `src/rq_eval/dimensions/groundedness` | E3 ✔ |
 | E&T §2 hallucination | `src/rq_eval/dimensions/hallucination` | E4 ✔ |
+| E&T §3 source_quality | `src/rq_eval/dimensions/source_quality` | E5 ✔ |
 
 ## Build status
 

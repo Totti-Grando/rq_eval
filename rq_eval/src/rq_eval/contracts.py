@@ -27,11 +27,20 @@ _Model = ConfigDict(extra="forbid")
 
 
 class ContextChunk(BaseModel):
-    """A retrieved source chunk, addressable by ``id`` for citation/attribution."""
+    """A retrieved source chunk, addressable by ``id`` for citation/attribution.
+
+    Optional metadata powers source_quality's deterministic checks (§3):
+    reachability (url), freshness (date), authorship (author), domain reliability
+    (domain). Absent metadata is treated as "internal corpus" (Nexa profile).
+    """
 
     model_config = _Model
     id: str
     text: str
+    url: str | None = None
+    date: str | None = None  # ISO-8601 (YYYY-MM-DD)
+    author: str | None = None
+    domain: str | None = None
 
 
 class EvalInput(BaseModel):

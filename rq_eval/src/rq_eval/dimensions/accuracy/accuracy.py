@@ -14,10 +14,13 @@ from rq_eval.audit.atom_logger import AtomLogger
 from rq_eval.contracts import AtomRecord, Claim, DimensionResult, EvalInput
 from rq_eval.dimensions.accuracy.claim_accuracy import ClaimAccuracy, ClaimAccuracyDeps
 from rq_eval.dimensions.accuracy.importance import ImportanceWeights
-from rq_eval.dimensions.accuracy.stubs import InferenceValidityStub, SourceQualityStub
+from rq_eval.dimensions.accuracy.stubs import InferenceValidityStub
 from rq_eval.dimensions.base import Dimension
 from rq_eval.dimensions.groundedness.export import GroundednessExport
 from rq_eval.dimensions.responsiveness import ResponsivenessExport
+from rq_eval.dimensions.source_quality.provider import SourceQualityProviderImpl
+from rq_eval.dimensions.source_quality.reliability_list import ReliabilityList
+from rq_eval.dimensions.source_quality.scorer import SourceQualityScorer
 from rq_eval.graders.grounding_grader import GroundingGrader
 from rq_eval.graders.judge_grader import JudgeGrader
 from rq_eval.graders.t1 import T1Tools
@@ -60,13 +63,23 @@ class AccuracyDimension(Dimension):
         )
         residual = JudgeGrader(providers.judge, logger, stamp.judge(), "accuracy.residual", seed)
         weights = weights or ImportanceWeights(cfg.accuracy.importance_weighting)
+        sq_supports = GroundingGrader(
+            providers.grounding, logger, stamp.grounding(), "accuracy.sq_supports", seed
+        )
+        sq_judge = JudgeGrader(
+            providers.judge, logger, stamp.judge(), "accuracy.sq_disinterest", seed
+        )
+        sq_scorer = SourceQualityScorer(
+            cfg, logger, sq_supports, sq_judge, ReliabilityList(cfg), providers.resolver.resolve
+        )
         self._claim_accuracy = ClaimAccuracy(
             ClaimAccuracyDeps(
                 grounding=grounding, attribution=attribution, residual_truth=residual,
-                t1=T1Tools(), source_quality=SourceQualityStub(cfg.accuracy.residual_policy),
+                t1=T1Tools(), source_quality=SourceQualityProviderImpl(cfg, sq_scorer),
                 inference=InferenceValidityStub(), weights=weights, logger=logger,
                 grounding_tau=cfg.thresholds.grounding_tau,
                 numeric_tolerance=cfg.accuracy.numeric_tolerance,
+                source_adequate_default=cfg.source_quality.source_adequate_default,
                 grounded_export=grounded_export,
             )
         )

@@ -23,7 +23,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from rq_eval.contracts import ContextChunk
 
 Vector = list[float]
 EntailmentLabel = Literal["E", "N", "C"]  # Entailment / Neutral / Contradiction
@@ -131,6 +134,19 @@ class ResolverProvider(ABC):
     @abstractmethod
     def resolve(self, reference: str) -> bool:
         """Return True iff the reference exists / resolves."""
+
+
+class SourceQualityProvider(ABC):
+    """§3/§6 — is a source trustworthy enough to count for a claim.
+
+    ``adequate`` = source_quality score ≥ config threshold; accuracy imports this
+    as its ``source-adequate?`` atom. Takes the full source set too (corroboration
+    needs cross-source independence). Emits property AtomRecords.
+    """
+
+    @abstractmethod
+    def adequate(self, source: ContextChunk, claim: str, sources: list[ContextChunk]) -> bool:
+        """Return whether ``source`` is adequate for ``claim`` (score ≥ threshold)."""
 
 
 class NlpProvider(ABC):
