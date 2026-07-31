@@ -61,9 +61,12 @@ Rows are added as each phase lands its folder (per the addendum).
 | §1 accuracy | `src/rq_eval/dimensions/accuracy` | B7 ✔ |
 | §2 completeness | `src/rq_eval/dimensions/completeness` | B8 ✔ |
 | §4 task_success | `src/rq_eval/dimensions/task_success` | B9 ✔ |
+| Phase D — runner + report + fixtures | `src/rq_eval/runner.py` | B10 ✔ |
 
 ## Build status
 
-Phase A: **B1 complete** (skeleton, one-spot config, requirements, install/smoke
-scaffolding). B2 (providers), B3 (contracts+audit) next. This document and the
-table above grow with each phase.
+**Complete: B1–B10.** Phase A (config, providers, contracts+audit), Phase B (§0
+pipeline, graders+scoring), Phase C (relevance, accuracy, completeness,
+task_success), Phase D (runner, report, fixtures). Full suite runs offline in
+`providers.mode: mock`; every score replays from the atom log; `mypy --strict`
+and `ruff` clean.
