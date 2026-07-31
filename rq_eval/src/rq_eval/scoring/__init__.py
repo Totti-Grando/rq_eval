@@ -12,6 +12,7 @@ from rq_eval.scoring.formulas import (
     ConjunctionWeightedMeanFormula,
     MeanFormula,
     RelevanceCappedMeanFormula,
+    TaskSuccessWeightedFormula,
     WeightedMeanFormula,
     default_registry,
 )
@@ -28,6 +29,7 @@ __all__ = [
     "MinNAbstention",
     "OffAskCap",
     "RelevanceCappedMeanFormula",
+    "TaskSuccessWeightedFormula",
     "WeightedMeanFormula",
     "WilsonInterval",
     "default_registry",

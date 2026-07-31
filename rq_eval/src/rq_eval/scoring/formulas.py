@@ -110,6 +110,27 @@ class AchievedRatioFormula(Formula):
         return sum(1 for a in outcomes if a.verdict) / len(outcomes)
 
 
+class TaskSuccessWeightedFormula(Formula):
+    """§4 task_success (v2): ``Σ achieved·w / Σ w`` over outcome atoms.
+
+    * an ``impossible_success`` atom (verdict True) -> 1.0;
+    * otherwise the weighted mean of the ``outcome`` atom verdicts, where each
+      outcome's weight is its atom weight. Replays purely from atoms.
+    """
+
+    formula_id = "task_success_weighted"
+
+    def compute(self, atoms: list[AtomRecord]) -> float:
+        """Weighted achieved/required (or 1.0 for a well-scoped impossibility)."""
+        if any(a.role == "impossible_success" and a.verdict for a in atoms):
+            return 1.0
+        outcomes = [a for a in atoms if a.role == "outcome"]
+        total = sum(a.weight for a in outcomes)
+        if total == 0.0:
+            return 0.0
+        return sum(a.weight for a in outcomes if a.verdict) / total
+
+
 def default_registry() -> FormulaRegistry:
     """Build a registry with the replay-critical formulas registered."""
     registry = FormulaRegistry()
@@ -118,4 +139,5 @@ def default_registry() -> FormulaRegistry:
     registry.register(ConjunctionWeightedMeanFormula())
     registry.register(RelevanceCappedMeanFormula())
     registry.register(AchievedRatioFormula())
+    registry.register(TaskSuccessWeightedFormula())
     return registry

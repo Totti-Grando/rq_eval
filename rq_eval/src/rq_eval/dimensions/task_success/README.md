@@ -1,28 +1,37 @@
 # dimensions/task_success
 
-**Design ref:** §4 task_success — MAJOR, goal accomplishment. Built strictly to
-`response-quality-design.md` §4 (the work order's B9 is superseded).
+**Design ref:** §4 task_success — MAJOR, **verifier-routed** goal accomplishment
+(new design v2; the work order's B9 and the earlier T3-only §4 are superseded).
 
-**Purpose:** score whether the user's *objective* would actually be achieved
-(fit to goal, not question). Genuinely Tier-3: the per-outcome verdicts are real
-judge calls; the taxonomy + templates are pinned references.
+**Purpose:** score whether the user's *objective* would actually be achieved.
+Not irreducibly T3: each required outcome routes to the cheapest verifier that
+fits, and the judge fires **only** on `adequacy` outcomes — so for
+executable/structured tasks the dimension is effectively T1.
 
 **Classes:**
-- `TaskTemplates` (+ `Outcome`) — [pinned] versioned task-type taxonomy; keyword classify.
-- `ObjectiveInference` — [T3-gen] infer intent from the question.
-- `OutcomeDecomposer` — [T3-gen] instantiate the template's outcomes for this instance.
+- `TaskTemplates` (+ `Outcome`) — [pinned] versioned taxonomy; each outcome tagged with its verifier + weight + params.
+- `ObjectiveInference` / `OutcomeDecomposer` — [T3-gen] infer intent; instantiate outcomes.
+- `verifiers/` — one verifier per routing-table tag (see its README).
+- `VerifierRouter` — dispatches an outcome to its tagged verifier.
 - `TaskSuccessDimension` — orchestrates steps 1–5 → `DimensionResult`.
 
+**Routing (design §4 table):**
+- artifact_presence / executable / state / constraint → **[T1]**
+- coverage → **[T2 NLI]**   ·   grounded / responsive → **[import]** (reuse accuracy/relevance graders)
+- adequacy → **[T3]** judge (the only judge call)
+
 **Calculations:**
-- `task_success = |achieved| / |required outcomes|` (`achieved_ratio` formula, `mean` over outcome atoms).
-- impossible task: a well-scoped "can't be done because X" → `score = 1.0` (an `impossible_success` atom short-circuits the formula, like relevance's abstention).
-- Wilson 95% CI over (achieved, required).
-- partial is captured by the ratio (2/3 = 0.67); multi-goal weighting is left unweighted per step 5 (primacy weighting is a documented extension point).
+- `task_success = Σ achieved·w / Σ w` over required outcomes (`task_success_weighted`).
+- impossible task → `1.0` (an `impossible_success` atom short-circuits the formula).
+- Wilson 95% CI over (achieved, required); partial captured by the ratio.
 
-**Determinism:** composition is code + replayable; classification is deterministic
-(config taxonomy keywords). The genuine non-replayable residue is the per-outcome
-judge verdicts + objective/outcome generation (pinned by the taxonomy version).
+**Determinism:** for code/SQL/structured tasks the score is T1 (execution/state/
+constraint) — replays bit-for-bit; the T3 residue is confined to `adequacy`
+outcomes. Execution is gated by `task_success.execution_sandbox` (default off →
+deterministic text heuristic; on → injected `ExecutionSandbox`). Every outcome's
+verifier tag + result is an `AtomRecord`.
 
-**How to extend:** edit `config/task_templates.yaml` to add task types / outcomes
-/ cues; bump its `version`; add primacy weights per outcome for multi-goal
-weighting.
+**How to extend:** edit `config/task_templates.yaml` (bump `version`) to add task
+types / outcomes / verifier tags / weights; add a verifier class under
+`verifiers/` and register it in the router; wire a real `ExecutionSandbox` on the
+target for true execution.

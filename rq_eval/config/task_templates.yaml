@@ -1,58 +1,130 @@
-# task_success task-type taxonomy + outcome templates (§4 step 2).
+# task_success task-type taxonomy + VERIFIER-TYPED outcome templates (§4 v2).
 #
-# Pinned generated reference (like any template): the task types and the required
-# outcomes each implies. `match` keywords classify the question (first match
-# wins; else `default` -> explain). `cues` are the deterministic signals the mock
-# judge overlaps against the answer to decide "achieved"; live uses the real
-# judge over `text`.
+# Each required outcome is tagged with the verifier that decides it (routing
+# table in design §4): the judge fires ONLY on `adequacy` outcomes; everything
+# else is T1 (presence/executable/state/constraint) or T2 (coverage) or an
+# import of accuracy/relevance. Human-authored + pinned (structural oracle) —
+# never agent-authored (Konstantinou et al., ICST 2025). `match` classifies the
+# question; `weight` feeds the weighted mean; `params` configure the verifier.
 
-version: task-templates-v1
+version: task-templates-v2
 default: explain
 
 task_types:
   fix:
     match: [fix, repair, broken, bug, error, "doesn't work", crash]
     outcomes:
-      - {id: corrected_artifact, text: "a corrected artifact is provided", cues: [def, return, code, fixed, patch]}
-      - {id: root_cause, text: "the root cause is addressed", cues: [because, cause, reason, due]}
-      - {id: would_run, text: "the solution would run", cues: [run, runs, works, output]}
+      - id: corrected_artifact
+        text: "a corrected code block exists"
+        verifier: artifact_presence
+        weight: 1.0
+        params: {patterns: ["```", "def ", "return ", "class ", "= "]}
+      - id: would_run
+        text: "the fix would run"
+        verifier: executable
+        weight: 1.0
+        params: {signals: ["def ", "return ", "import ", "```"], run_claims: [run, runs, works, passes, output, compiles]}
+      - id: root_cause
+        text: "addresses the root cause"
+        verifier: adequacy
+        weight: 1.0
+        params: {cues: [because, cause, root, reason, due]}
 
   explain:
     match: [explain, why, how, understand, mechanism]
     outcomes:
-      - {id: mechanism, text: "the mechanism is covered", cues: [because, mechanism, works, process]}
-      - {id: right_level, text: "the explanation is at the right level", cues: [example, means, simply]}
-      - {id: no_gap, text: "there is no critical gap", cues: [therefore, overall, complete]}
+      - id: mechanism
+        text: "explains the mechanism's key steps"
+        verifier: coverage
+        weight: 1.0
+        params: {requirement: "the mechanism and why it happens"}
+      - id: responsive
+        text: "answers the specific ask"
+        verifier: import
+        weight: 1.0
+        params: {signal: responsive}
+      - id: right_level
+        text: "pitched at the right level"
+        verifier: adequacy
+        weight: 0.5
+        params: {cues: [example, means, simply, "in other words"]}
 
   compare:
     match: [compare, versus, vs, difference, better]
     outcomes:
-      - {id: both_sides, text: "both options are covered", cues: [first, second, both, whereas]}
-      - {id: criteria, text: "the stated criteria are addressed", cues: [cost, speed, criteria]}
-      - {id: bottom_line, text: "a bottom-line is given", cues: [overall, recommend, choose, better]}
+      - id: both_sides
+        text: "covers both options"
+        verifier: coverage
+        weight: 1.0
+        params: {requirement: "both options with their trade-offs"}
+      - id: bottom_line
+        text: "gives a bottom-line recommendation"
+        verifier: artifact_presence
+        weight: 1.0
+        params: {patterns: [recommend, overall, choose, better, "bottom line", prefer]}
 
   produce:
     match: [write, create, produce, generate, draft, build]
     outcomes:
-      - {id: artifact_exists, text: "the requested artifact exists", cues: [here, following, def, "```"]}
-      - {id: meets_constraints, text: "it meets each stated constraint", cues: [constraint, requirement, includes]}
+      - id: artifact_exists
+        text: "the requested artifact exists"
+        verifier: artifact_presence
+        weight: 1.0
+        params: {patterns: ["```", "def ", "- ", "| ", "1."]}
+      - id: grounded
+        text: "the artifact does not invent facts"
+        verifier: import
+        weight: 1.0
+        params: {signal: grounded}
 
   summarize:
     match: [summarize, summary, tldr, recap]
     outcomes:
-      - {id: key_points, text: "the key points are captured", cues: [key, main, points]}
-      - {id: proportionate, text: "the summary is proportionate", cues: [brief, short, concise]}
-      - {id: nothing_invented, text: "nothing is invented", cues: [source, stated, according]}
+      - id: key_points
+        text: "captures the key points"
+        verifier: coverage
+        weight: 1.0
+        params: {requirement: "the key points of the source"}
+      - id: proportionate
+        text: "is proportionate in length"
+        verifier: constraint
+        weight: 0.5
+        params: {max_words: 120}
+      - id: nothing_invented
+        text: "invents nothing"
+        verifier: import
+        weight: 1.0
+        params: {signal: grounded}
 
   recommend:
     match: [recommend, advise, suggestion, "should i", "best option"]
     outcomes:
-      - {id: clear_rec, text: "a clear recommendation is made", cues: [recommend, should, suggest]}
-      - {id: justified, text: "the recommendation is justified", cues: [because, since, reason]}
-      - {id: alternatives, text: "alternatives are acknowledged", cues: [alternative, otherwise, however]}
+      - id: clear_rec
+        text: "makes a clear recommendation"
+        verifier: artifact_presence
+        weight: 1.0
+        params: {patterns: [recommend, should, suggest, "i would", "go with"]}
+      - id: justified
+        text: "the recommendation is justified"
+        verifier: import
+        weight: 1.0
+        params: {signal: grounded}
+      - id: alternatives
+        text: "acknowledges alternatives"
+        verifier: artifact_presence
+        weight: 0.5
+        params: {patterns: [alternative, otherwise, however, option, "on the other hand"]}
 
   extract:
     match: [extract, list, "pull out", "find all", "what are the"]
     outcomes:
-      - {id: requested_values, text: "the requested values are provided", cues: [list, values, are]}
-      - {id: correct_complete, text: "they are correct and complete", cues: [all, complete, total]}
+      - id: requested_values
+        text: "provides the requested values"
+        verifier: artifact_presence
+        weight: 1.0
+        params: {patterns: ["- ", "| ", "1.", ": "]}
+      - id: correct_complete
+        text: "the values are correct and complete"
+        verifier: adequacy
+        weight: 1.0
+        params: {cues: [all, complete, total, each]}

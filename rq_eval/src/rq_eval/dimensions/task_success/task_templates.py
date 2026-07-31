@@ -7,6 +7,7 @@ the genuine Tier-3 judgment is left to the per-outcome verdicts.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -18,11 +19,14 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class Outcome:
-    """One required outcome: id, human text, and mock-judge cue signals."""
+    """One required outcome, tagged with the verifier that decides it (§4 v2)."""
 
     id: str
     text: str
-    cues: tuple[str, ...]
+    # verifier tag: artifact_presence|executable|state|constraint|coverage|import|adequacy
+    verifier: str
+    weight: float
+    params: Mapping[str, Any]
 
 
 class TaskTemplates:
@@ -51,8 +55,11 @@ class TaskTemplates:
         return self._default
 
     def outcomes_for(self, task_type: str) -> list[Outcome]:
-        """Return the required outcomes for ``task_type``."""
+        """Return the verifier-tagged required outcomes for ``task_type``."""
         return [
-            Outcome(id=o["id"], text=o["text"], cues=tuple(o.get("cues", [])))
+            Outcome(
+                id=o["id"], text=o["text"], verifier=o["verifier"],
+                weight=float(o.get("weight", 1.0)), params=dict(o.get("params", {})),
+            )
             for o in self._types[task_type]["outcomes"]
         ]

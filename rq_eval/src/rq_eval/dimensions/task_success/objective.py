@@ -34,5 +34,10 @@ class OutcomeDecomposer:
             text = self._generator.generate(
                 f"[[echo]] {{{{ {oc.text} }}}}", seed=self._seed
             ).text
-            instantiated.append(Outcome(id=oc.id, text=text or oc.text, cues=oc.cues))
+            instantiated.append(
+                Outcome(
+                    id=oc.id, text=text or oc.text, verifier=oc.verifier,
+                    weight=oc.weight, params=oc.params,
+                )
+            )
         return instantiated

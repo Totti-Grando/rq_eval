@@ -91,6 +91,13 @@ class AccuracyConfig(BaseModel):
     residual_policy: Literal["nexa", "ravenpack"]
 
 
+class TaskSuccessConfig(BaseModel):
+    """§4 knobs — whether 'executable' outcomes run for real (else heuristic)."""
+
+    model_config = _Strict
+    execution_sandbox: bool
+
+
 class RelevanceConfig(BaseModel):
     """§3 knobs — method selection and Method-A reverse-question count."""
 
@@ -149,6 +156,7 @@ class Config(BaseModel):
     thresholds: ThresholdsConfig
     completeness: CompletenessConfig
     accuracy: AccuracyConfig
+    task_success: TaskSuccessConfig
     relevance: RelevanceConfig
     pipeline: PipelineConfig
     pins: PinsConfig

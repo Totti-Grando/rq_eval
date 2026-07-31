@@ -83,19 +83,31 @@ Fit to the **question** — on-topic + responsive — and it *owns* the responsi
 *Edges:* over-answering (off-ask cap + conciseness ding, not a zero); multi-part (score per part, aggregate). **Tools:** Bedrock grounding-relevance (B) or RAGAS-on-Bedrock + Titan (A) · judge (residual). **Confirm:** A vs B vs both; τ; per-claim atom via grounding-relevance vs light NLI.
 
 ---
+## 4. task_success - Major · Goal Accomplishment
 
-## 4. task_success — MAJOR · goal accomplishment
+## 4. task_success — MAJOR · verifier-routed (goal accomplishment)
 
-Whether the user's **objective** would actually be achieved — fit to *goal*, not question ("fix this code" answered with a correct explanation and no fix = accurate + relevant + task **failure**). **Genuinely Tier-3**: no fixed classifier judges "was the objective met" (requires inferring intent *and* verifying outcomes delivered) — the honest contrast with responsiveness, which has a reproducible proxy.
+Whether the user's **objective** would actually be achieved — fit to *goal*, not question ("fix this code" answered with a correct explanation and no fix = accurate + relevant + task **failure**). **Not irreducibly T3.** The objective decomposes into required outcomes, and each outcome routes to the cheapest verifier that fits — the agent-eval literature's standard is a **deterministic oracle, with the judge as the fallback** for the residue state and rules can't capture: goal achievement is "typically verified by a deterministic oracle — database state, file-system state, or test-case execution" ([Hitchhiker's Guide to Agentic AI](https://arxiv.org/pdf/2606.24937), 2026); an **execution evaluator** checks goal conditions after running the plan, with a **semantic evaluator** only where state can't capture the outcome ([SafeAgentBench](https://arxiv.org/pdf/2412.13178), 2024); environment-level scoring uses **hash-based terminal-state matching** ([Unified Framework](https://arxiv.org/pdf/2605.27898), 2026, following τ-bench); success validation "is often rule-based" ([Generalizability survey](https://arxiv.org/pdf/2509.16330), 2025); multi-step tasks are scored by **subgoal decomposition + sum**, SWE-bench-style ([KDD 2025 tutorial](https://sap-samples.github.io/llm-agents-eval-tutorial/2025_KDD_Evaluation_and_Benchmarking_of_LLM_Agents.pdf)). So: **deterministic fraction near-total for executable/structured/constrained tasks, shrinking to a small adequacy residue for open-ended goals.**
 
 1. **Infer the objective** `[T3-gen]` — the intent, not the literal words ("why is this slow?" usually implies *and how to fix it*).
-2. **Classify task type + pull outcome template** `[T3]`: *fix* → {corrected artifact, root cause addressed, would run}; *explain* → {mechanism covered, right level, no critical gap}; *compare* → {both sides, stated criteria, bottom-line}; *produce* → {artifact exists, meets each constraint}; *summarize* → {key points, proportionate, nothing invented}; *recommend* → {clear rec, justified, alternatives}; *extract* → {requested value(s), correct + complete}.
-3. **Decompose into required outcomes** `[T3-gen]` — instantiate the template against this instance's specifics.
-4. **Judge each outcome achieved?** `[T3]`.
-5. **Compute** `[code]`: `task_success = |achieved| / |required outcomes|`.
+2. **Classify task type + pull a verifier-typed outcome template** `[T3]`. Each outcome in the template is **tagged with its verifier** (see the routing table). Templates are **human-authored and pinned** — per **Konstantinou et al. (ICST 2025)**, LLM-written assertions encode the *current, possibly buggy* behaviour rather than the intended one, so outcome checks are human-validated, never agent-authored, for the certification set (a structural oracle, like completeness's Tier-1).
+3. **Decompose into concrete required outcomes** `[T3-gen]` — instantiate the template against this instance's specifics.
+4. **Route each outcome to its tagged verifier** — `[T1]` presence/execution/state/constraint · `[T2]` coverage/import · `[T3]` adequacy only. **The judge fires only on `adequacy` outcomes**, which for executable/structured task types is often zero. Routing table:
 
-*Reproducibility:* pin the task-type taxonomy + templates like any generated reference (borrows from agent **goal-completion** evaluation). *Edges:* multi-goal (decompose each, weight by primacy); implicit goals (step 1 must surface them); partial (ratio captures it, 2/3 = 0.67); impossible task (well-scoped "can't be done because X" = success, like relevance's abstention).
-**Tools:** judge (objective + per-outcome) · `numpy`. **Confirm:** task-type taxonomy + templates; multi-goal weighting.
+   | Outcome type | Verifier | Tier | Example |
+   |---|---|---|---|
+   | artifact-presence | parse/structure check | `[T1]` | "a corrected code block exists", "a table is present" |
+   | executable / test | run it — sandbox exec, unit test, linter, recompute | `[T1]` | "the fix runs", "the SQL returns the right rows", "the number is correct" (SWE-bench-style) |
+   | state / end-condition | compare terminal state to ground truth (hash/state match) | `[T1]` | "the record was created", "the file has the expected contents" (τ-bench-style) |
+   | constraint-satisfaction | reuse `constraint_compliance` | `[T1]` | "meets length/format", "includes X, excludes Y" |
+   | coverage | reuse completeness's nugget-recall vs a task requirement set | `[T2 NLI]` | "covers both sides", "explains the mechanism's key steps" |
+   | grounded / responsive | import from accuracy / relevance | `[import]` | "the recommendation is justified", "answers the specific ask" |
+   | adequacy (residue) | judge — per-outcome binary | `[T3]` | "addresses the *root* cause", "at the *right* level", "the recommendation is *sound*" |
+
+5. **Compute** `[code]`: `task_success = Σ achieved·w / Σ w` over required outcomes (graded/partial-credit `TSR_graded`).
+
+*Reproducibility:* pin the task-type taxonomy + per-outcome verifier tags. *Edges:* multi-goal (decompose each, weight by primacy); implicit goals (step 1 must surface them); partial (the ratio captures it); impossible task (well-scoped "can't be done because X" = success, like relevance's abstention). *Determinism:* for code/SQL/numeric/structured/agentic tasks the dimension is effectively `[T1]` (execution + state + constraint checks that replay bit-for-bit and are more trustworthy than a judge's opinion of whether code runs); the `[T3]` residue is confined to adequacy on non-executable goals, and even there it's a per-outcome boolean with code aggregating. Every outcome's verifier tag + result is an AtomRecord (§0.5).
+**Tools:** T1 parse/exec/state/constraint checks · completeness NLI (coverage) · accuracy/relevance imports · judge (adequacy only) · `numpy`. **Confirm:** task-type taxonomy + per-outcome verifier tags; execution sandbox in scope? (big determinism win for code/SQL); adequacy-outcome weighting.
 
 ---
 
@@ -103,16 +115,16 @@ Whether the user's **objective** would actually be achieved — fit to *goal*, n
 
 Build §0 first (accuracy/completeness/relevance consume it), then completeness's units (which also supply accuracy's importance weights). Responsiveness is computed once in relevance, imported by accuracy, ignored by task_success. All four are **MAJOR**; the only gate touching the category is accuracy's **fabricated-citation** subtype (lives in `hallucination`). Honest Tier-3 surface after this design: the `[T3-gen]` decomposition steps, task_success's per-outcome verdicts, accuracy's unsourced/inferred residual, and the thin relevance residual — everything else (grounding, attribution, unit-support, relevance scoring, all recall/precision/composition) is T2 + code. Every generated reference (claim/unit/outcome set) is pinned + human-sample-validated (τ ≈ 0.87) and lives in the certification suite; discovery regenerates freely.
 
-**Development summary — I/O, output, and where the determinism sits** (bands are policy-set; default G ≥ 0.90 / A ≥ 0.75 / R < 0.75):
+**Development summary — I/O, output, and exactly how each tier is used** (bands are policy-set; default G ≥ 0.90 / A ≥ 0.75 / R < 0.75). **T1** = deterministic code (rules, parsers, execution, set-membership, all arithmetic) — replays bit-for-bit. **T2** = fixed model (NLI / grounding / embeddings), score thresholded to a boolean *in code* — replays deterministically. **T3** = generative model: **T3-gen** builds a *pinned, frozen, τ-validated* reference (extraction, nuggetization, templates); **T3** (judge) emits a single yes/no on a residual atom — the only non-replayable step, stamped with model+version.
 
-| Dimension | Inputs | Output | Deterministic (T1/T2 + code) | Pinned-generative (T3-gen) | Judge (T3) |
+| Dimension | Inputs | Output | T1 — deterministic code | T2 — fixed model (thresholded in code) | T3 — generative |
 |---|---|---|---|---|---|
-| accuracy | answer + context + citations | `[0,1]` = correct/verifiable-claims + band | grounding, attribution, composition | claim extraction/decontext | unsourced residual only |
-| completeness | question + sources + requirement templates | strict-vital-recall + requirement-coverage + Wilson CI | Tier-1 scaffold, admissibility gate, assignment, all scoring | Tier-2 unit drafting | one-time unit admission |
-| relevance | question + answer | `[0,1]` (off-ask capped) + band | grounding-relevance (B) / cosine (A), composition | RAGAS reverse-questions (A only) | thin ask-fit residual |
-| task_success | question + answer | `[0,1]` = achieved/required + band | composition | objective + outcome decomposition | per-outcome verdicts |
+| accuracy | answer + context + citations | `[0,1]` = correct/verifiable-claims + band | conjunction + weighted mean; numeric/temporal exact-match; citation set-membership | grounded, attributed (NLI/grounding); source-adequacy import | **gen:** claim extraction/decontext · **judge:** unsourced/inferred residual only |
+| completeness | question + sources + requirement templates | strict-vital-recall + requirement-coverage + Wilson CI | Tier-1 scaffold; admissibility (atomicity); all recall/coverage/CI math | unit assignment + dedupe (NLI/embeddings) | **gen:** Tier-2 unit drafting · **judge:** one-time unit admission |
+| relevance | question + answer | `[0,1]` (off-ask capped) + band | cosine average (A); off-ask cap; composition | grounding-relevance (B) / embeddings (A), thresholded | **gen:** RAGAS reverse-questions (A only) · **judge:** thin ask-fit residual |
+| task_success | question + answer (+ artifacts/state) | `[0,1]` = Σ achieved·w / Σ w + band | **most outcomes:** presence, execution/test, state-match, constraint checks; all aggregation | coverage outcomes (NLI); grounded/responsive imports | **gen:** objective + outcome decomposition (pinned templates) · **judge:** adequacy outcomes only |
 
-Read the table as the audit ledger: everything in the "Deterministic" column replays bit-for-bit; the "Pinned-generative" column is frozen + τ-validated per §0.5; only the "Judge" column is non-replayable, and it is deliberately confined to the narrowest residues. That distribution — gates and the bulk of scoring in the reproducible columns, the judge cornered into genuine semantic residue — is the design maximizing determinism and auditability.
+Read the table left-to-right as the audit ledger: the **T1** and **T2** columns replay exactly (T1 bit-for-bit, T2 from stamped fixed-model outputs); **T3-gen** is frozen and τ-validated per §0.5, so it's stable across a certification run even though a model produced it; and the **judge** is the sole non-replayable element, deliberately cornered into the narrowest residues (accuracy's unsourced claims, completeness's one-time admission, relevance's ask-fit edge, task_success's adequacy outcomes). Gates and the bulk of every score live in the T1/T2 columns — that distribution is the design maximizing determinism and auditability.
 
 ## Sources
 
@@ -138,6 +150,14 @@ Relevance / grounding
 - [AWS Bedrock Guardrails (contextual grounding, relevance)](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-components.html)
 - [fairseq RoBERTa-MNLI via torch.hub](https://pytorch.org/hub/pytorch_fairseq_roberta/) — non-HF NLI
 - "Knowing When You Don't Know" (Thakur et al., EMNLP 2024) — *cite by name*
+
+task_success / agent goal-completion
+- [Hitchhiker's Guide to Agentic AI](https://arxiv.org/pdf/2606.24937) (2026) — deterministic-oracle TSR, graded success, test-execution
+- [SafeAgentBench](https://arxiv.org/pdf/2412.13178) (2024) — execution evaluator + semantic-evaluator residual
+- [Unified Framework for LLM Agentic Capabilities](https://arxiv.org/pdf/2605.27898) (2026) — hash-based terminal-state matching (τ-bench)
+- [Generalizability of LLM Agents survey](https://arxiv.org/pdf/2509.16330) (2025) — rule-based/constraint success validation
+- [KDD 2025 Agent-Eval tutorial](https://sap-samples.github.io/llm-agents-eval-tutorial/2025_KDD_Evaluation_and_Benchmarking_of_LLM_Agents.pdf) — subgoal decomposition + sum; SWE-bench
+- Konstantinou et al., ICST 2025 — humans validate ground-truth assertions; never agent-authored — *cite by name*
 
 
 

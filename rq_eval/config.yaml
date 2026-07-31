@@ -40,6 +40,9 @@ accuracy:
   numeric_tolerance: 0.0     # relative tolerance for numeric exact-match (0 == strict)
   residual_policy: nexa      # nexa | ravenpack (nexa -> source-adequacy~1, residue~0)
 
+task_success:
+  execution_sandbox: false   # run 'executable' outcomes for real (target only); off -> T1 heuristic
+
 relevance:
   method: B                  # A | B | both  (B == deterministic-first default)
   reverse_questions_n: 3     # Method A: questions generated from the answer

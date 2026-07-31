@@ -60,7 +60,8 @@ Rows are added as each phase lands its folder (per the addendum).
 | §3 relevance | `src/rq_eval/dimensions/relevance` | B6 ✔ |
 | §1 accuracy | `src/rq_eval/dimensions/accuracy` | B7 ✔ |
 | §2 completeness | `src/rq_eval/dimensions/completeness` | B8 ✔ |
-| §4 task_success | `src/rq_eval/dimensions/task_success` | B9 ✔ |
+| §4 task_success (verifier-routed) | `src/rq_eval/dimensions/task_success` | B9 ✔ |
+| §4 outcome verifiers (routing table) | `src/rq_eval/dimensions/task_success/verifiers` | B9 ✔ |
 | Phase D — runner + report + fixtures | `src/rq_eval/runner.py` | B10 ✔ |
 
 ## Build status
