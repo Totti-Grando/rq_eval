@@ -19,6 +19,7 @@ from rq_eval.providers.base import (
     JudgeProvider,
     NlpProvider,
     RelevanceProvider,
+    ResolverProvider,
 )
 
 if TYPE_CHECKING:
@@ -38,6 +39,7 @@ class Providers:
     grounding: GroundingProvider
     relevance: RelevanceProvider
     nlp: NlpProvider
+    resolver: ResolverProvider
 
 
 class ProviderFactory:
@@ -73,6 +75,7 @@ class ProviderFactory:
             ),
             relevance=MockRelevanceProvider(seed=s.judge),
             nlp=MockNlpProvider(seed=s.judge),
+            resolver=self._build_resolver(),
         )
 
     # -- live -------------------------------------------------------------- #
@@ -92,7 +95,18 @@ class ProviderFactory:
             grounding=self._build_grounding(session),
             relevance=GuardrailRelevanceProvider(self._cfg, session),
             nlp=SpacyNlpProvider(self._cfg),
+            resolver=self._build_resolver(),
         )
+
+    def _build_resolver(self) -> ResolverProvider:
+        """Select the fabrication resolver by ``hallucination.resolver``."""
+        if self._cfg.hallucination.resolver == "live":
+            from rq_eval.providers.live.resolver import LiveResolverProvider
+
+            return LiveResolverProvider(self._cfg)
+        from rq_eval.providers.mock.resolver import MockResolverProvider
+
+        return MockResolverProvider()
 
     def _build_grounding(self, session: BedrockSession) -> GroundingProvider:
         """Select the grounding backend by ``models.nli``."""
@@ -124,4 +138,5 @@ class ProviderFactory:
             check("grounding", lambda: p.grounding.entails("the sky is blue", "sky is blue")),
             check("relevance", lambda: p.relevance.score("why blue?", "the sky is blue")),
             check("nlp", lambda: p.nlp.segment("One. Two.")),
+            check("resolver", lambda: p.resolver.resolve("https://example.com")),
         ]

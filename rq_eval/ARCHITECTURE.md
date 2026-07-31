@@ -64,6 +64,7 @@ Rows are added as each phase lands its folder (per the addendum).
 | §4 outcome verifiers (routing table) | `src/rq_eval/dimensions/task_success/verifiers` | B9 ✔ |
 | Phase D — runner + report + fixtures | `src/rq_eval/runner.py` | B10 ✔ |
 | E&T §1 groundedness | `src/rq_eval/dimensions/groundedness` | E3 ✔ |
+| E&T §2 hallucination | `src/rq_eval/dimensions/hallucination` | E4 ✔ |
 
 ## Build status
 

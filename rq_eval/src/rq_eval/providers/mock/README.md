@@ -13,6 +13,8 @@ enough to exercise every downstream code path and to make tests deterministic.
 - `MockGroundingProvider` — [T2] three-way entailment: coverage ≥ entail_tau → E, negation-mismatch → C, else N.
 - `MockRelevanceProvider` — [T2] token-Jaccard relevance score.
 - `MockNlpProvider` — [T1/T2] regex segmentation + leading-pronoun coref.
+- `MockResolverProvider` — [T1] reference exists unless it contains a fabricated-marker token.
+- `MockGeneratorProvider` `[[triplets]]` — deterministic S|P|O parse splitter (E&T §0).
 
 **Calculations (mock heuristics, not real scores):**
 - `overlap(a, b) = |tokens(a) ∩ tokens(b)| / |tokens(a)|` (grounding coverage, judge `[[overlap]]`).

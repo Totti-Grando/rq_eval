@@ -16,6 +16,7 @@ from rq_eval.providers.base import (
     JudgeVerdict,
     NlpProvider,
     RelevanceProvider,
+    ResolverProvider,
     Vector,
 )
 from rq_eval.providers.factory import ProviderFactory, Providers
@@ -34,5 +35,6 @@ __all__ = [
     "ProviderFactory",
     "Providers",
     "RelevanceProvider",
+    "ResolverProvider",
     "Vector",
 ]

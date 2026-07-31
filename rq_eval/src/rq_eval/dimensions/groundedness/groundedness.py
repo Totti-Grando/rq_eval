@@ -68,6 +68,7 @@ class GroundednessDimension(Dimension):
                 hypothesis=triplet.text,
             )
             triplet_atoms.append(atom)
+            self._export.add_triplet(atom.id, res.label)
             by_claim.setdefault(triplet.claim_id, []).append((res.supported, res.raw_score))
 
         self._export_per_claim(by_claim)

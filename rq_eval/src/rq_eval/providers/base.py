@@ -120,6 +120,19 @@ class RelevanceProvider(ABC):
         """Score response relevance to query. Inputs→ raw score∈[0,1]."""
 
 
+class ResolverProvider(ABC):
+    """[T1-ish] Reference-existence check for the fabrication gate (§2).
+
+    Returns whether a citation reference *exists* (a URL resolves, a DOI is in a
+    registry). Orthogonal to whether it *supports* the claim. Set-membership of a
+    chunk-id in the retrieved set is done in our code, not here.
+    """
+
+    @abstractmethod
+    def resolve(self, reference: str) -> bool:
+        """Return True iff the reference exists / resolves."""
+
+
 class NlpProvider(ABC):
     """[T1/T2] Deterministic NLP — sentence segmentation + coref resolution.
 

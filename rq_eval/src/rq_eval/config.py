@@ -100,6 +100,14 @@ class TaskSuccessConfig(BaseModel):
     execution_sandbox: bool
 
 
+class HallucinationConfig(BaseModel):
+    """§2 knobs — fabrication-gate reference resolver + DOI toggle."""
+
+    model_config = _Strict
+    resolver: Literal["mock", "live"]
+    doi_registry_enabled: bool
+
+
 class RelevanceConfig(BaseModel):
     """§3 knobs — method selection and Method-A reverse-question count."""
 
@@ -160,6 +168,7 @@ class Config(BaseModel):
     completeness: CompletenessConfig
     accuracy: AccuracyConfig
     task_success: TaskSuccessConfig
+    hallucination: HallucinationConfig
     relevance: RelevanceConfig
     pipeline: PipelineConfig
     pins: PinsConfig

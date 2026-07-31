@@ -131,6 +131,18 @@ class TaskSuccessWeightedFormula(Formula):
         return sum(a.weight for a in outcomes if a.verdict) / total
 
 
+class UnsupportedRateFormula(Formula):
+    """§2 hallucination: ``unsupported = 1 − |supported| / |total|`` over triplet atoms."""
+
+    formula_id = "unsupported_rate"
+
+    def compute(self, atoms: list[AtomRecord]) -> float:
+        """Return 1 − mean(verdicts), or 0.0 if there are no atoms."""
+        if not atoms:
+            return 0.0
+        return 1.0 - sum(1 for a in atoms if a.verdict) / len(atoms)
+
+
 def default_registry() -> FormulaRegistry:
     """Build a registry with the replay-critical formulas registered."""
     registry = FormulaRegistry()
@@ -140,4 +152,5 @@ def default_registry() -> FormulaRegistry:
     registry.register(RelevanceCappedMeanFormula())
     registry.register(AchievedRatioFormula())
     registry.register(TaskSuccessWeightedFormula())
+    registry.register(UnsupportedRateFormula())
     return registry

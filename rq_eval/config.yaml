@@ -45,6 +45,10 @@ accuracy:
 task_success:
   execution_sandbox: false   # run 'executable' outcomes for real (target only); off -> T1 heuristic
 
+hallucination:
+  resolver: mock             # mock | live  (URL/DOI existence resolver for the fabrication gate)
+  doi_registry_enabled: false
+
 relevance:
   method: B                  # A | B | both  (B == deterministic-first default)
   reverse_questions_n: 3     # Method A: questions generated from the answer
