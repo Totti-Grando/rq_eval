@@ -1,0 +1,32 @@
+# Completeness Tier-1 requirement templates — the STRUCTURAL ORACLE (§2 step 1).
+#
+# This fixed, human-editable scaffold is where the coverage guarantee lives: the
+# facets a complete answer must cover, per question-type, reviewed once — not an
+# AI recall step. `match` keywords select the question-type (first match wins;
+# else `default`). `vital` marks materiality (carried to both tiers).
+#
+# Pinned by pins.template_version; versioned to question + corpus hash at runtime.
+
+version: templates-v1
+
+question_types:
+  drivers:
+    match: [driver, drivers, decline, decrease, increase, grew, growth, change, why]
+    requirements:
+      - {id: cost_drivers, text: "cost drivers behind the change", vital: true}
+      - {id: pricing, text: "pricing actions taken", vital: true}
+      - {id: one_time, text: "one-time or non-recurring items", vital: false}
+      - {id: fx, text: "foreign-exchange effects", vital: false}
+
+  comparison:
+    match: [compare, versus, vs, difference, better, worse]
+    requirements:
+      - {id: side_a, text: "the first option's key points", vital: true}
+      - {id: side_b, text: "the second option's key points", vital: true}
+      - {id: bottom_line, text: "the bottom-line recommendation", vital: true}
+
+  default:
+    match: []
+    requirements:
+      - {id: main_point, text: "the main point the question asks for", vital: true}
+      - {id: supporting, text: "supporting detail or evidence", vital: false}

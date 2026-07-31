@@ -59,9 +59,9 @@ Rows are added as each phase lands its folder (per the addendum).
 | dimension base + shared responsiveness | `src/rq_eval/dimensions` | B6 ✔ |
 | §3 relevance | `src/rq_eval/dimensions/relevance` | B6 ✔ |
 | §1 accuracy | `src/rq_eval/dimensions/accuracy` | B7 ✔ |
+| §2 completeness | `src/rq_eval/dimensions/completeness` | B8 ✔ |
 
-_Planned (added in their phase): §2 `dimensions/completeness/`,
-§4 `dimensions/task_success/`._
+_Planned (added in their phase): §4 `dimensions/task_success/`._
 
 ## Build status
 

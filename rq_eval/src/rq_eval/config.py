@@ -212,3 +212,16 @@ def load_config(path: str | os.PathLike[str] | None = None) -> Config:
 def get_config() -> Config:
     """Cached accessor for the default project config."""
     return load_config()
+
+
+def load_yaml(path: str | os.PathLike[str]) -> object:
+    """Load an arbitrary YAML data file (e.g. requirement/task templates).
+
+    Centralized here so ``config.py`` remains the ONLY module importing yaml
+    (enforced by tests/test_config_single_source.py). Callers pass an already
+    config-resolved path.
+    """
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(f"YAML data file not found: {p}")
+    return yaml.safe_load(p.read_text(encoding="utf-8"))
