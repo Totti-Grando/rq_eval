@@ -10,12 +10,12 @@ enough to exercise every downstream code path and to make tests deterministic.
 - `MockJudgeProvider` — [T3] tag-dispatched boolean verdicts (`[[affirm]]`/`[[deny]]`/`[[overlap[:tau]]]`/seeded).
 - `MockGeneratorProvider` — [T3-gen] tag-dispatched text (`[[echo]]`/`[[sentences]]`/`[[repeat]]`).
 - `MockEmbeddingProvider` — [T2] hashed bag-of-tokens vectors.
-- `MockGroundingProvider` — [T2] keyword-overlap grounding score.
+- `MockGroundingProvider` — [T2] three-way entailment: coverage ≥ entail_tau → E, negation-mismatch → C, else N.
 - `MockRelevanceProvider` — [T2] token-Jaccard relevance score.
 - `MockNlpProvider` — [T1/T2] regex segmentation + leading-pronoun coref.
 
 **Calculations (mock heuristics, not real scores):**
-- `overlap(a, b) = |tokens(a) ∩ tokens(b)| / |tokens(a)|` (grounding, judge `[[overlap]]`).
+- `overlap(a, b) = |tokens(a) ∩ tokens(b)| / |tokens(a)|` (grounding coverage, judge `[[overlap]]`).
 - `jaccard(a, b) = |tokens(a) ∩ tokens(b)| / |tokens(a) ∪ tokens(b)|` (relevance).
 - `embed(t)` = L2-normalized counts of hashed content tokens; cosine rises with shared tokens.
 - seeded bit = `sha256(seed | question | context)[0] & 1` (judge default).

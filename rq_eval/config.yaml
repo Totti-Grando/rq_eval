@@ -24,8 +24,10 @@ models:
 
 thresholds:
   relevance_tau: 0.5         # query<->response relevance cutoff (Methods A/B)
-  grounding_tau: 0.5         # grounding raw_score -> grounded boolean cutoff
+  grounding_tau: 0.5         # legacy raw cutoff (retained; entail_tau drives E/N/C now)
   attribution_tau: 0.5       # directional grounding vs the *cited* chunk cutoff
+  entail_tau: 0.5            # grounding raw_score >= this -> Entailment (E)
+  contra_tau: 0.5            # (mock) negation-mismatch coverage >= this -> Contradiction (C)
   bands:                     # score -> band: >=G -> "G", >=A -> "A", else "R"
     G: 0.90
     A: 0.75

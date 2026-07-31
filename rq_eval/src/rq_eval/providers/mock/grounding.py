@@ -1,23 +1,39 @@
-"""Mock grounding — keyword-overlap entailment score (build order B2).
+"""Mock grounding — deterministic three-way entailment (design §1).
 
-raw_score = coverage of the claim's content tokens by the source ∈ [0, 1]:
-a claim whose tokens all appear in the source scores ~1 (grounded); a claim
-with no support scores ~0. Thresholding to a boolean happens in our code.
+label from token coverage + a crude negation heuristic:
+* coverage = |tokens(hypothesis) ∩ tokens(premise)| / |tokens(hypothesis)|
+* negation mismatch (one side negated, the other not) with real overlap -> C
+* else coverage ≥ entail_tau -> E ; else -> N
+raw_score = coverage. Thresholds come from config.
 """
 
 from __future__ import annotations
 
-from rq_eval.providers.base import GroundingProvider, GroundingResult
+from rq_eval.providers.base import EntailmentResult, GroundingProvider
 from rq_eval.providers.mock.deterministic_text import DeterministicText
+
+_NEGATION = frozenset("not no never none cannot n't without fails fewer lower".split())
 
 
 class MockGroundingProvider(GroundingProvider):
-    """Deterministic keyword-overlap grounding for offline runs."""
+    """Deterministic keyword-overlap + negation three-way entailment."""
 
-    def __init__(self, seed: int) -> None:
-        """Seed the deterministic text model."""
+    def __init__(self, seed: int, entail_tau: float, contra_tau: float) -> None:
+        """Seed the text model and store the E/C coverage thresholds."""
         self._dt = DeterministicText(seed)
+        self._entail_tau = entail_tau
+        self._contra_tau = contra_tau
 
-    def check(self, source: str, claim: str) -> GroundingResult:
-        """raw_score = |tokens(claim) ∩ tokens(source)| / |tokens(claim)|."""
-        return GroundingResult(raw_score=self._dt.overlap(claim, source))
+    def entails(self, premise: str, hypothesis: str) -> EntailmentResult:
+        """Classify hypothesis vs premise as E / N / C with a raw coverage score."""
+        cov = self._dt.overlap(hypothesis, premise)
+        if cov >= self._contra_tau and self._negation_mismatch(premise, hypothesis):
+            return EntailmentResult(label="C", raw_score=cov)
+        if cov >= self._entail_tau:
+            return EntailmentResult(label="E", raw_score=cov)
+        return EntailmentResult(label="N", raw_score=cov)
+
+    def _negation_mismatch(self, premise: str, hypothesis: str) -> bool:
+        p = any(t in _NEGATION for t in self._dt.tokens(premise))
+        h = any(t in _NEGATION for t in self._dt.tokens(hypothesis))
+        return p != h

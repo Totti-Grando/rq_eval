@@ -1,26 +1,28 @@
-"""Live grounding — fairseq RoBERTa-MNLI via torch.hub (B2, optional live path).
+"""Live grounding — fairseq RoBERTa-MNLI via torch.hub (design §1, optional live).
 
-Non-HF NLI: entailment probability of ``claim`` (hypothesis) given ``source``
-(premise). Returned raw; thresholded in our code. Selected by models.nli:
-fairseq. torch/fairseq are imported lazily so this file is import-safe without
-them installed.
+Native three-way NLI (Contradiction / Neutral / Entailment). Selected by
+``models.nli: fairseq``. torch/fairseq are imported lazily so this file is
+import-safe without them installed.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from rq_eval.providers.base import GroundingProvider, GroundingResult
+from rq_eval.providers.base import EntailmentLabel, EntailmentResult, GroundingProvider
 
 if TYPE_CHECKING:
     from rq_eval.config import Config
 
+# fairseq MNLI label order: 0=contradiction, 1=neutral, 2=entailment
+_LABELS: tuple[EntailmentLabel, ...] = ("C", "N", "E")
+
 
 class FairseqGroundingProvider(GroundingProvider):
-    """Entailment score from a torch.hub fairseq RoBERTa-large-MNLI model."""
+    """Native three-way entailment from a torch.hub fairseq RoBERTa-large-MNLI."""
 
     def __init__(self, cfg: Config) -> None:
-        """Store config; the model is loaded lazily on first check()."""
+        """Store config; the model is loaded lazily on first call."""
         self._cfg = cfg
         self._model: Any | None = None
 
@@ -33,11 +35,11 @@ class FairseqGroundingProvider(GroundingProvider):
             self._model = model
         return self._model
 
-    def check(self, source: str, claim: str) -> GroundingResult:
-        """P(entailment) of claim given source via RoBERTa-MNLI (label idx 2)."""
+    def entails(self, premise: str, hypothesis: str) -> EntailmentResult:
+        """Argmax over {C, N, E}; raw_score = P(entailment)."""
         model = self._load()
-        tokens = model.encode(source, claim)
+        tokens = model.encode(premise, hypothesis)
         logits = model.predict("mnli", tokens)
         probs = logits.exp() / logits.exp().sum()
-        # fairseq MNLI label order: 0=contradiction, 1=neutral, 2=entailment
-        return GroundingResult(raw_score=float(probs[0][2]))
+        idx = int(probs.argmax())
+        return EntailmentResult(label=_LABELS[idx], raw_score=float(probs[0][2]))

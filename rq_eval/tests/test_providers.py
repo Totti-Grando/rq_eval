@@ -6,8 +6,8 @@ import pytest
 
 from rq_eval.config import load_config
 from rq_eval.providers.base import (
+    EntailmentResult,
     GenerationResult,
-    GroundingResult,
     JudgeVerdict,
 )
 from rq_eval.providers.factory import ProviderFactory, Providers
@@ -52,11 +52,18 @@ def test_judge_tags_are_deterministic(providers: Providers) -> None:
     assert a == b
 
 
-def test_grounding_and_relevance_return_raw_floats(providers: Providers) -> None:
-    g = providers.grounding.check("the sky is blue today", "sky is blue")
-    assert isinstance(g, GroundingResult)
+def test_grounding_three_way_entailment(providers: Providers) -> None:
+    g = providers.grounding.entails("the sky is blue today", "sky is blue")
+    assert isinstance(g, EntailmentResult)
+    assert g.label in {"E", "N", "C"}
     assert 0.0 <= g.raw_score <= 1.0
-    assert g.raw_score == pytest.approx(1.0)  # all claim tokens covered
+    assert g.label == "E" and g.supported  # all hypothesis tokens covered
+    # source silent on the hypothesis -> Neutral
+    neutral = providers.grounding.entails("bananas grow in the tropics", "the sky is blue")
+    assert neutral.label == "N"
+    # negation mismatch with overlap -> Contradiction
+    contra = providers.grounding.entails("the sky is blue", "the sky is not blue")
+    assert contra.label == "C"
     r = providers.relevance.score("why is the sky blue", "the sky is blue")
     assert 0.0 <= r <= 1.0
 

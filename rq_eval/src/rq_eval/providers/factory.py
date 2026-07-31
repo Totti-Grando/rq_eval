@@ -63,11 +63,14 @@ class ProviderFactory:
         from rq_eval.providers.mock.relevance import MockRelevanceProvider
 
         s = self._cfg.seeds
+        t = self._cfg.thresholds
         return Providers(
             judge=MockJudgeProvider(seed=s.judge),
             generator=MockGeneratorProvider(seed=s.judge),
             embedding=MockEmbeddingProvider(seed=s.embedding),
-            grounding=MockGroundingProvider(seed=s.judge),
+            grounding=MockGroundingProvider(
+                seed=s.judge, entail_tau=t.entail_tau, contra_tau=t.contra_tau
+            ),
             relevance=MockRelevanceProvider(seed=s.judge),
             nlp=MockNlpProvider(seed=s.judge),
         )
@@ -101,7 +104,11 @@ class ProviderFactory:
         if nli == "mock":
             from rq_eval.providers.mock.grounding import MockGroundingProvider
 
-            return MockGroundingProvider(seed=self._cfg.seeds.judge)
+            return MockGroundingProvider(
+                seed=self._cfg.seeds.judge,
+                entail_tau=self._cfg.thresholds.entail_tau,
+                contra_tau=self._cfg.thresholds.contra_tau,
+            )
         from rq_eval.providers.live.grounding_guardrail import GuardrailGroundingProvider
 
         return GuardrailGroundingProvider(self._cfg, session)
@@ -114,7 +121,7 @@ class ProviderFactory:
             check("judge", lambda: p.judge.binary("[[affirm]] ok?", "context")),
             check("generator", lambda: p.generator.generate("[[echo]] hello", seed=1)),
             check("embedding", lambda: p.embedding.embed(["alpha beta", "gamma"])),
-            check("grounding", lambda: p.grounding.check("the sky is blue", "sky is blue")),
+            check("grounding", lambda: p.grounding.entails("the sky is blue", "sky is blue")),
             check("relevance", lambda: p.relevance.score("why blue?", "the sky is blue")),
             check("nlp", lambda: p.nlp.segment("One. Two.")),
         ]

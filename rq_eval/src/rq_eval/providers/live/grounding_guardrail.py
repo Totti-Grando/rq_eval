@@ -1,14 +1,15 @@
-"""Live grounding — Bedrock Guardrails contextual grounding (B2, live path).
+"""Live grounding — Bedrock Guardrails contextual grounding (design §1, live).
 
-ApplyGuardrail returns a contextual-grounding GROUNDING filter score for the
-claim against the source. We return that raw score; our code thresholds it.
+ApplyGuardrail returns a contextual-grounding GROUNDING filter score. Guardrails
+can't distinguish Neutral from Contradiction, so this maps score→{E, N} via
+``entail_tau`` (use the fairseq backend for native three-way with C).
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from rq_eval.providers.base import GroundingProvider, GroundingResult
+from rq_eval.providers.base import EntailmentLabel, EntailmentResult, GroundingProvider
 from rq_eval.providers.live.bedrock_session import BedrockSession
 
 if TYPE_CHECKING:
@@ -16,25 +17,27 @@ if TYPE_CHECKING:
 
 
 class GuardrailGroundingProvider(GroundingProvider):
-    """Grounding score from a Bedrock Guardrail's contextual-grounding policy."""
+    """Three-way (E/N only) entailment from a Bedrock contextual-grounding policy."""
 
     def __init__(self, cfg: Config, session: BedrockSession) -> None:
         """Store config + shared Bedrock session (no network yet)."""
         self._cfg = cfg
         self._session = session
 
-    def check(self, source: str, claim: str) -> GroundingResult:
-        """ApplyGuardrail(source as grounding_source, claim as output)→ score."""
+    def entails(self, premise: str, hypothesis: str) -> EntailmentResult:
+        """ApplyGuardrail(premise as grounding_source)→ score→ E if ≥ entail_tau else N."""
         resp = self._session.runtime().apply_guardrail(
             guardrailIdentifier=self._cfg.models.guardrail_id,
             guardrailVersion=self._cfg.models.guardrail_version,
             source="OUTPUT",
             content=[
-                {"text": {"text": source, "qualifiers": ["grounding_source"]}},
-                {"text": {"text": claim}},
+                {"text": {"text": premise, "qualifiers": ["grounding_source"]}},
+                {"text": {"text": hypothesis}},
             ],
         )
-        return GroundingResult(raw_score=_filter_score(resp, "GROUNDING"))
+        score = _filter_score(resp, "GROUNDING")
+        label: EntailmentLabel = "E" if score >= self._cfg.thresholds.entail_tau else "N"
+        return EntailmentResult(label=label, raw_score=score)
 
 
 def _filter_score(resp: dict[str, Any], filter_type: str) -> float:

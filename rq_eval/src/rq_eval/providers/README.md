@@ -15,7 +15,7 @@ makes the whole program build, run, and test offline (`providers.mode: mock`).
 - `JudgeProvider` — [T3] boolean judge; the ONLY method is `binary(...) -> {verdict: bool, reason}`. No numeric endpoint.
 - `GeneratorProvider` — [T3-gen] pinned text generation (claims, units, objectives); returns text, never numbers.
 - `EmbeddingProvider` — [T2] text → fixed-dim vectors.
-- `GroundingProvider` — [T2] entailment/grounding → `raw_score` (thresholded in our code).
+- `GroundingProvider` — [T2] three-way entailment `entails(premise, hypothesis) -> {label∈E|N|C, raw_score, supported}` (design §1/§6; one verifier, three premises).
 - `RelevanceProvider` — [T2] query↔response → raw score (thresholded in our code).
 - `NlpProvider` — [T1/T2] sentence segmentation + coref (spaCy/coreferee; mock = regex/identity).
 - `ProviderFactory` — config-selected construction; `Providers` — the injected bundle.

@@ -59,8 +59,7 @@ class CompletenessDimension(Dimension):
         vital_w = 2.0 if cfg.completeness.vital_weighting else 1.0
         self._assigner = UnitAssigner(
             GroundingGrader(
-                providers.grounding, cfg.thresholds.grounding_tau, logger, stamp.grounding(),
-                "completeness.assign", seed,
+                providers.grounding, logger, stamp.grounding(), "completeness.assign", seed
             ),
             vital_weight=vital_w, okay_weight=1.0,
         )

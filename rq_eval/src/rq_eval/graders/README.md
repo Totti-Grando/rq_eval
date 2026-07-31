@@ -11,12 +11,12 @@ the layer that enforces "float → boolean thresholding happens in our code."
 **Classes:**
 - `T1Tools` — [T1] pure: numeric exact-match, citation membership, atomicity/conjunction split, word count.
 - `JudgeGrader` — [T3] ask a yes/no question, log the atom, return the bool.
-- `GroundingGrader` — [T2] `raw_score ≥ grounding_tau → grounded`; logs raw + verdict.
+- `GroundingGrader` — [T2] three-way entailment adapter; `verdict = supported = (label == E)`; `assess()` returns (atom, `EntailmentResult`).
 - `RelevanceGrader` — [T2] `raw ≥ relevance_tau → relevant`; logs raw + verdict.
 
 **Calculations:**
 - numeric match: `|na - nb| ≤ tolerance · max(|na|, |nb|)` (tolerance 0 = exact).
-- grounding boolean: `raw_score ≥ grounding_tau`.
+- grounding boolean: `label == E` (E/N/C from the provider over `entail_tau`/`contra_tau`).
 - relevance boolean: `raw_score ≥ relevance_tau`.
 - atomicity: no `;`/`and`/`but`/`whereas` clause join.
 

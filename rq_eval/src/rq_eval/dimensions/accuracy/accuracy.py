@@ -51,12 +51,10 @@ class AccuracyDimension(Dimension):
         stamp = ModelStamp(cfg)
         seed = cfg.seeds.judge
         grounding = GroundingGrader(
-            providers.grounding, cfg.thresholds.grounding_tau, logger, stamp.grounding(),
-            "accuracy.grounded", seed,
+            providers.grounding, logger, stamp.grounding(), "accuracy.grounded", seed
         )
         attribution = GroundingGrader(
-            providers.grounding, cfg.thresholds.attribution_tau, logger, stamp.grounding(),
-            "accuracy.attributed", seed,
+            providers.grounding, logger, stamp.grounding(), "accuracy.attributed", seed
         )
         residual = JudgeGrader(providers.judge, logger, stamp.judge(), "accuracy.residual", seed)
         weights = weights or ImportanceWeights(cfg.accuracy.importance_weighting)

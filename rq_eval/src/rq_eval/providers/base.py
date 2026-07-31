@@ -23,8 +23,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from typing import Literal
 
 Vector = list[float]
+EntailmentLabel = Literal["E", "N", "C"]  # Entailment / Neutral / Contradiction
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,10 +50,21 @@ class GenerationResult:
 
 
 @dataclass(frozen=True, slots=True)
-class GroundingResult:
-    """Raw grounding/entailment score in [0, 1]; thresholded in our code."""
+class EntailmentResult:
+    """Three-way NLI verdict (design §1/§6): E/N/C label + raw score.
 
+    ``supported`` is the boolean downstream code reads (label == "E"); the raw
+    score is kept for the conformal layer. Neutral = source silent; Contradiction
+    = source says the opposite (the severe sub-case, split out by hallucination).
+    """
+
+    label: EntailmentLabel
     raw_score: float
+
+    @property
+    def supported(self) -> bool:
+        """True iff the hypothesis is entailed by the premise (label == 'E')."""
+        return self.label == "E"
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,11 +99,17 @@ class EmbeddingProvider(ABC):
 
 
 class GroundingProvider(ABC):
-    """[T2] Entailment/grounding check → raw score (thresholded in our code)."""
+    """[T2] Three-way entailment (E/N/C); one verifier, three premises (§6).
+
+    Shared by groundedness (premise = context), attribution (premise = the
+    *cited* chunk), and source_quality's supports-check. Thresholding of the raw
+    score into the label happens in the live impl from config bands; downstream
+    code reads ``label``/``supported``, never re-thresholds.
+    """
 
     @abstractmethod
-    def check(self, source: str, claim: str) -> GroundingResult:
-        """Score whether ``source`` entails ``claim``. Inputs→ raw_score∈[0,1]."""
+    def entails(self, premise: str, hypothesis: str) -> EntailmentResult:
+        """Classify ``hypothesis`` vs ``premise`` as E / N / C (+ raw score)."""
 
 
 class RelevanceProvider(ABC):

@@ -70,6 +70,8 @@ class ThresholdsConfig(BaseModel):
     relevance_tau: float = Field(ge=0.0, le=1.0)
     grounding_tau: float = Field(ge=0.0, le=1.0)
     attribution_tau: float = Field(ge=0.0, le=1.0)
+    entail_tau: float = Field(ge=0.0, le=1.0)
+    contra_tau: float = Field(ge=0.0, le=1.0)
     bands: BandsConfig
 
 

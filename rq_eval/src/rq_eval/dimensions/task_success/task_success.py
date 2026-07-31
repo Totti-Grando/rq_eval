@@ -70,14 +70,12 @@ class TaskSuccessDimension(Dimension):
     def _build_router(
         self, providers: Providers, cfg: Config, logger: AtomLogger, stamp: ModelStamp, seed: int
     ) -> VerifierRouter:
-        gtau = cfg.thresholds.grounding_tau
         rtau = cfg.thresholds.relevance_tau
         coverage_grader = GroundingGrader(
-            providers.grounding, gtau, logger, stamp.grounding(), "task_success.coverage", seed
+            providers.grounding, logger, stamp.grounding(), "task_success.coverage", seed
         )
         import_grounding = GroundingGrader(
-            providers.grounding, gtau, logger, stamp.grounding(),
-            "task_success.import_grounded", seed,
+            providers.grounding, logger, stamp.grounding(), "task_success.import_grounded", seed
         )
         import_relevance = RelevanceGrader(
             providers.relevance, rtau, logger, stamp.relevance(),
