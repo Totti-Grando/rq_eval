@@ -89,6 +89,27 @@ class RelevanceCappedMeanFormula(Formula):
         return base
 
 
+class AchievedRatioFormula(Formula):
+    """§4 task_success: ``|achieved| / |required outcomes|``, impossible-aware.
+
+    * an ``impossible_success`` atom (verdict True) -> 1.0 (a well-scoped "can't
+      be done because X" is a success, like relevance's abstention);
+    * otherwise ``mean`` over the ``outcome`` atom verdicts.
+    Replays purely from atoms.
+    """
+
+    formula_id = "achieved_ratio"
+
+    def compute(self, atoms: list[AtomRecord]) -> float:
+        """Compute achieved/required (or 1.0 for a well-scoped impossibility)."""
+        if any(a.role == "impossible_success" and a.verdict for a in atoms):
+            return 1.0
+        outcomes = [a for a in atoms if a.role == "outcome"]
+        if not outcomes:
+            return 0.0
+        return sum(1 for a in outcomes if a.verdict) / len(outcomes)
+
+
 def default_registry() -> FormulaRegistry:
     """Build a registry with the replay-critical formulas registered."""
     registry = FormulaRegistry()
@@ -96,4 +117,5 @@ def default_registry() -> FormulaRegistry:
     registry.register(WeightedMeanFormula())
     registry.register(ConjunctionWeightedMeanFormula())
     registry.register(RelevanceCappedMeanFormula())
+    registry.register(AchievedRatioFormula())
     return registry

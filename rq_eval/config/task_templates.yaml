@@ -1,0 +1,58 @@
+# task_success task-type taxonomy + outcome templates (§4 step 2).
+#
+# Pinned generated reference (like any template): the task types and the required
+# outcomes each implies. `match` keywords classify the question (first match
+# wins; else `default` -> explain). `cues` are the deterministic signals the mock
+# judge overlaps against the answer to decide "achieved"; live uses the real
+# judge over `text`.
+
+version: task-templates-v1
+default: explain
+
+task_types:
+  fix:
+    match: [fix, repair, broken, bug, error, "doesn't work", crash]
+    outcomes:
+      - {id: corrected_artifact, text: "a corrected artifact is provided", cues: [def, return, code, fixed, patch]}
+      - {id: root_cause, text: "the root cause is addressed", cues: [because, cause, reason, due]}
+      - {id: would_run, text: "the solution would run", cues: [run, runs, works, output]}
+
+  explain:
+    match: [explain, why, how, understand, mechanism]
+    outcomes:
+      - {id: mechanism, text: "the mechanism is covered", cues: [because, mechanism, works, process]}
+      - {id: right_level, text: "the explanation is at the right level", cues: [example, means, simply]}
+      - {id: no_gap, text: "there is no critical gap", cues: [therefore, overall, complete]}
+
+  compare:
+    match: [compare, versus, vs, difference, better]
+    outcomes:
+      - {id: both_sides, text: "both options are covered", cues: [first, second, both, whereas]}
+      - {id: criteria, text: "the stated criteria are addressed", cues: [cost, speed, criteria]}
+      - {id: bottom_line, text: "a bottom-line is given", cues: [overall, recommend, choose, better]}
+
+  produce:
+    match: [write, create, produce, generate, draft, build]
+    outcomes:
+      - {id: artifact_exists, text: "the requested artifact exists", cues: [here, following, def, "```"]}
+      - {id: meets_constraints, text: "it meets each stated constraint", cues: [constraint, requirement, includes]}
+
+  summarize:
+    match: [summarize, summary, tldr, recap]
+    outcomes:
+      - {id: key_points, text: "the key points are captured", cues: [key, main, points]}
+      - {id: proportionate, text: "the summary is proportionate", cues: [brief, short, concise]}
+      - {id: nothing_invented, text: "nothing is invented", cues: [source, stated, according]}
+
+  recommend:
+    match: [recommend, advise, suggestion, "should i", "best option"]
+    outcomes:
+      - {id: clear_rec, text: "a clear recommendation is made", cues: [recommend, should, suggest]}
+      - {id: justified, text: "the recommendation is justified", cues: [because, since, reason]}
+      - {id: alternatives, text: "alternatives are acknowledged", cues: [alternative, otherwise, however]}
+
+  extract:
+    match: [extract, list, "pull out", "find all", "what are the"]
+    outcomes:
+      - {id: requested_values, text: "the requested values are provided", cues: [list, values, are]}
+      - {id: correct_complete, text: "they are correct and complete", cues: [all, complete, total]}
