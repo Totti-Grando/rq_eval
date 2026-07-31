@@ -108,6 +108,14 @@ class HallucinationConfig(BaseModel):
     doi_registry_enabled: bool
 
 
+class SourceAttributionConfig(BaseModel):
+    """§4 knobs — label scheme + precision-favoring confidence gate."""
+
+    model_config = _Strict
+    labels: Literal["three", "four"]
+    precision_threshold: float = Field(ge=0.0, le=1.0)
+
+
 class SourceQualityConfig(BaseModel):
     """§3 knobs — reliability list, adequacy threshold, corroboration, freshness."""
 
@@ -183,6 +191,7 @@ class Config(BaseModel):
     task_success: TaskSuccessConfig
     hallucination: HallucinationConfig
     source_quality: SourceQualityConfig
+    source_attribution: SourceAttributionConfig
     relevance: RelevanceConfig
     pipeline: PipelineConfig
     pins: PinsConfig

@@ -49,6 +49,10 @@ hallucination:
   resolver: mock             # mock | live  (URL/DOI existence resolver for the fabrication gate)
   doi_registry_enabled: false
 
+source_attribution:          # §4 ALCE citation recall/precision
+  labels: three              # three (AttrScore) | four (CAQA)
+  precision_threshold: 0.5   # precision-favoring confidence gate for attributed?
+
 source_quality:              # §3 the bridge to world factuality
   reliability_list: config/reliability_list.yaml   # domain allow/deny oracle (human-maintained)
   adequacy_threshold: 0.6    # source-adequate? = mean(properties) >= this

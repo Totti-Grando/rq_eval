@@ -77,6 +77,19 @@ class CorefResult:
     resolved_text: str
 
 
+@dataclass(frozen=True, slots=True)
+class AttributionResult:
+    """§4/§6 — whether a claim is attributed to its cited chunk + confidence.
+
+    ``attributed`` = Attributable (cited chunk entails the claim) ∧ confidence ≥
+    the precision-favoring threshold; ``confidence`` feeds the conformal layer.
+    """
+
+    attributed: bool
+    confidence: float
+    label: str
+
+
 class JudgeProvider(ABC):
     """[T3] The judge — the ONLY method is a boolean verdict (no scoring)."""
 
@@ -147,6 +160,18 @@ class SourceQualityProvider(ABC):
     @abstractmethod
     def adequate(self, source: ContextChunk, claim: str, sources: list[ContextChunk]) -> bool:
         """Return whether ``source`` is adequate for ``claim`` (score ≥ threshold)."""
+
+
+class AttributionProvider(ABC):
+    """§4/§6 — is a claim attributed to the source that actually supports it.
+
+    accuracy imports this as its ``attributed?`` atom. Returns the boolean +
+    confidence (the confidence is what the conformal layer wraps).
+    """
+
+    @abstractmethod
+    def attributed(self, claim: str, cited_chunk: str) -> AttributionResult:
+        """Three-way cited-chunk↔claim verdict → attributed bool + confidence."""
 
 
 class NlpProvider(ABC):

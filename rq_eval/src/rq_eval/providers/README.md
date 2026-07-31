@@ -20,6 +20,7 @@ makes the whole program build, run, and test offline (`providers.mode: mock`).
 - `NlpProvider` — [T1/T2] sentence segmentation + coref (spaCy/coreferee; mock = regex/identity).
 - `ResolverProvider` — [T1] reference existence (URL/DOI) for the fabrication gate (§2).
 - `SourceQualityProvider` — §3 `adequate(source, claim, sources) -> bool`; accuracy's source-adequate import.
+- `AttributionProvider` — §4 `attributed(claim, cited_chunk) -> {bool, confidence}`; accuracy's attributed import.
 - `ProviderFactory` — config-selected construction; `Providers` — the injected bundle.
 
 **Calculations:** none in the interfaces. Mock heuristics live in `mock/`

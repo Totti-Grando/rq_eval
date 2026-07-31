@@ -18,6 +18,7 @@ from rq_eval.dimensions.accuracy.stubs import InferenceValidityStub
 from rq_eval.dimensions.base import Dimension
 from rq_eval.dimensions.groundedness.export import GroundednessExport
 from rq_eval.dimensions.responsiveness import ResponsivenessExport
+from rq_eval.dimensions.source_attribution.provider import AttributionProviderImpl
 from rq_eval.dimensions.source_quality.provider import SourceQualityProviderImpl
 from rq_eval.dimensions.source_quality.reliability_list import ReliabilityList
 from rq_eval.dimensions.source_quality.scorer import SourceQualityScorer
@@ -58,8 +59,11 @@ class AccuracyDimension(Dimension):
         grounding = GroundingGrader(
             providers.grounding, logger, stamp.grounding(), "accuracy.grounded", seed
         )
-        attribution = GroundingGrader(
-            providers.grounding, logger, stamp.grounding(), "accuracy.attributed", seed
+        attribution = AttributionProviderImpl(
+            cfg,
+            GroundingGrader(
+                providers.grounding, logger, stamp.grounding(), "accuracy.attributed", seed
+            ),
         )
         residual = JudgeGrader(providers.judge, logger, stamp.judge(), "accuracy.residual", seed)
         weights = weights or ImportanceWeights(cfg.accuracy.importance_weighting)

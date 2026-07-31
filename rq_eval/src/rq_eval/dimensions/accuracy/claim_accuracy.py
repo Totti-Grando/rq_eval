@@ -20,7 +20,7 @@ from rq_eval.dimensions.responsiveness import ResponsivenessExport
 from rq_eval.graders.grounding_grader import GroundingGrader
 from rq_eval.graders.judge_grader import JudgeGrader
 from rq_eval.graders.t1 import T1Tools
-from rq_eval.providers.base import SourceQualityProvider
+from rq_eval.providers.base import AttributionProvider, SourceQualityProvider
 
 _CODE = ("code", "rq_eval")
 _RESIDUAL_TRUTH = "[[affirm]] Is this claim true (no source available to ground against)?"
@@ -31,7 +31,7 @@ class ClaimAccuracyDeps:
     """Collaborators injected into :class:`ClaimAccuracy` (keeps arity sane)."""
 
     grounding: GroundingGrader
-    attribution: GroundingGrader
+    attribution: AttributionProvider  # real §4 provider (no more plain grounding)
     residual_truth: JudgeGrader
     t1: T1Tools
     source_quality: SourceQualityProvider  # real §3 provider (no more stub)
@@ -136,15 +136,20 @@ class ClaimAccuracy:
         )
 
     def _attributed(self, claim: Claim, cited: dict[str, str], w: float) -> AtomRecord:
+        # claims with no citation are excluded from attribution (they route to the
+        # unsourced residual, counted once) -> pass here, don't penalize.
         if claim.citation and claim.citation in cited:
-            return self._d.attribution.check(
-                subject=claim.id, role="attributed", source=cited[claim.citation],
-                claim=claim.text, weight=w,
+            res = self._d.attribution.attributed(claim.text, cited[claim.citation])
+            return self._d.logger.record(
+                subject=claim.id, role="attributed", question="attributed?", tier="T2",
+                verdict=res.attributed, weight=w,
+                evidence=f"label={res.label} conf={res.confidence:.4f}",
+                grader_id="accuracy.attributed", model=_CODE[0], model_version=_CODE[1],
             )
         return self._d.logger.record(
             subject=claim.id, role="attributed", question="attributed?", tier="T2",
-            verdict=True, weight=w, evidence="no citation", grader_id="accuracy.attributed",
-            model=_CODE[0], model_version=_CODE[1],
+            verdict=True, weight=w, evidence="no citation (excluded)",
+            grader_id="accuracy.attributed", model=_CODE[0], model_version=_CODE[1],
         )
 
     def _responsive(self, claim: Claim, export: ResponsivenessExport, w: float) -> AtomRecord:
