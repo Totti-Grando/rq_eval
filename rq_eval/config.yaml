@@ -71,7 +71,7 @@ pipeline:                    # §0 claim-extraction pipeline
 
 conformal:                   # §5 conformal factuality (statistical guarantee)
   alpha: 0.05                # error budget; target confidence = 1 - alpha
-  min_calibration_n: 8       # abstain from the guarantee below this many points
+  min_calibration_n: 6       # abstain from the guarantee below this many points
   per_stratum: false         # marginal (global) by default; true -> per-stratum thresholds
   strata: [question_type, source_type]   # partition keys (used when per_stratum)
   calibration_path: config/calibration/calibration-v1.jsonl

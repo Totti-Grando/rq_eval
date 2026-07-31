@@ -70,8 +70,11 @@ Rows are added as each phase lands its folder (per the addendum).
 
 ## Build status
 
-**Complete: B1–B10.** Phase A (config, providers, contracts+audit), Phase B (§0
-pipeline, graders+scoring), Phase C (relevance, accuracy, completeness,
-task_success), Phase D (runner, report, fixtures). Full suite runs offline in
-`providers.mode: mock`; every score replays from the atom log; `mypy --strict`
-and `ruff` clean.
+**Complete: B1–B10 (Response Quality) + E1–E9 (Evidence & Truthfulness).**
+Response Quality: config, providers, contracts+audit, §0 pipeline,
+graders+scoring, the four dimensions, runner. Evidence & Truthfulness: three-way
+grounding contract, claim-triplets, groundedness, hallucination (fabrication
+gate), source_quality + source_attribution (accuracy's real imports — no stubs),
+calibration store, conformal factuality, and the eight-dimension runner. Full
+suite runs offline in `providers.mode: mock`; every score replays from the atom
+log; `mypy --strict` and `ruff` clean.

@@ -1,47 +1,59 @@
-"""End-to-end runner (build order B10, Phase D assembly).
+"""End-to-end runner (build order B10 + E9, Phase D assembly).
 
-Runs the §0 pipeline once, then the four dimensions in the required order —
-relevance first (it exports per-claim responsiveness), then accuracy (imports
-it), completeness, and task_success — returning all four results plus the atom
-log. ``python -m rq_eval.runner`` runs the fixture suite and prints reports.
+Runs the §0 pipeline + triplet decomposition once, calibrates the conformal
+layer, then the eight dimensions in dependency order — relevance (exports
+responsive) and groundedness (exports grounded) before accuracy; hallucination
+after groundedness — returning all eight results plus the atom log.
+``python -m rq_eval.runner`` runs the fixture suite and prints reports.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
 
 from rq_eval.audit.atom_logger import AtomLogger
 from rq_eval.audit.atom_store import AtomStore
 from rq_eval.audit.atom_store_factory import AtomStoreFactory
+from rq_eval.audit.calibration import CalibrationStore
 from rq_eval.audit.clock import Clock, SystemClock
 from rq_eval.config import Config, load_config
 from rq_eval.contracts import AtomRecord, Claim, ContextChunk, DimensionResult, EvalInput, Profile
 from rq_eval.dimensions.accuracy.accuracy import AccuracyDimension
 from rq_eval.dimensions.completeness.completeness import CompletenessDimension
+from rq_eval.dimensions.groundedness.export import GroundednessExport
+from rq_eval.dimensions.groundedness.groundedness import GroundednessDimension
+from rq_eval.dimensions.hallucination.hallucination import HallucinationDimension
 from rq_eval.dimensions.relevance.relevance import RelevanceDimension
 from rq_eval.dimensions.responsiveness import ResponsivenessExport
+from rq_eval.dimensions.source_attribution.export import AttributionExport
+from rq_eval.dimensions.source_attribution.source_attribution import SourceAttributionDimension
+from rq_eval.dimensions.source_quality.source_quality import SourceQualityDimension
 from rq_eval.dimensions.task_success.task_success import TaskSuccessDimension
 from rq_eval.pipeline.pipeline import ClaimPipeline
+from rq_eval.pipeline.triplets import ClaimTripletExtractor
 from rq_eval.providers.factory import ProviderFactory, Providers
+from rq_eval.scoring.conformal import ConformalCalibrator, ConformalResult, ConformalStratifier
 
-if TYPE_CHECKING:
-    pass
+_ORDER = (
+    "accuracy", "completeness", "relevance", "task_success",
+    "groundedness", "hallucination", "source_quality", "source_attribution",
+)
 
 
 @dataclass(frozen=True, slots=True)
 class EvaluationResult:
-    """One evaluation's four dimension results + provenance."""
+    """One evaluation's eight dimension results + provenance."""
 
     results: dict[str, DimensionResult]
     claims: list[Claim]
     stability: float | None
     store: AtomStore
+    conformal: ConformalResult
     atoms: list[AtomRecord] = field(default_factory=list)
 
 
 class Evaluator:
-    """Orchestrates the pipeline + four dimensions for one evaluation."""
+    """Orchestrates the pipeline + eight dimensions for one evaluation."""
 
     def __init__(
         self,
@@ -57,33 +69,68 @@ class Evaluator:
         self._logger = AtomLogger(self._store, clock or SystemClock())
 
     def evaluate(self, eval_input: EvalInput) -> EvaluationResult:
-        """Run §0 then the four dimensions (relevance before accuracy)."""
+        """Run §0 + triplets + conformal, then all eight dimensions in order."""
+        p, cfg, log = self._providers, self._cfg, self._logger
         context_text = " ".join(c.text for c in eval_input.context)
-        pipeline = ClaimPipeline(self._providers, self._cfg, self._logger)
-        pres = pipeline.run(eval_input.answer, context_text)
+        pres = ClaimPipeline(p, cfg, log).run(eval_input.answer, context_text)
         claims = pres.claims
+        triplets = ClaimTripletExtractor(p.generator, cfg).extract_all(claims)
+        conformal = self._calibrate_conformal()
 
-        export = ResponsivenessExport()
-        relevance = RelevanceDimension(
-            self._providers, self._cfg, self._logger, claims, export
-        ).evaluate(eval_input)
+        responsive = ResponsivenessExport()
+        grounded = GroundednessExport()
+        attribution = AttributionExport()
+
+        relevance = RelevanceDimension(p, cfg, log, claims, responsive).evaluate(eval_input)
+        groundedness = GroundednessDimension(p, cfg, log, triplets, grounded).evaluate(eval_input)
+        conformal_gate = None if conformal.abstained else conformal.threshold
         accuracy = AccuracyDimension(
-            self._providers, self._cfg, self._logger, claims, export
+            p, cfg, log, claims, responsive, grounded_export=grounded,
+            attribution_conformal_threshold=conformal_gate,
         ).evaluate(eval_input)
-        completeness = CompletenessDimension(
-            self._providers, self._cfg, self._logger
+        completeness = CompletenessDimension(p, cfg, log).evaluate(eval_input)
+        task_success = TaskSuccessDimension(p, cfg, log).evaluate(eval_input)
+        hallucination = HallucinationDimension(p, cfg, log, claims, grounded).evaluate(eval_input)
+        source_quality = SourceQualityDimension(p, cfg, log).evaluate(eval_input)
+        source_attribution = SourceAttributionDimension(
+            p, cfg, log, claims, attribution
         ).evaluate(eval_input)
-        task_success = TaskSuccessDimension(
-            self._providers, self._cfg, self._logger
-        ).evaluate(eval_input)
+        source_attribution = self._stamp_conformal(source_attribution, conformal)
+        groundedness = self._stamp_conformal(groundedness, conformal)
 
         results = {
-            r.dimension: r for r in (accuracy, completeness, relevance, task_success)
+            r.dimension: r
+            for r in (
+                accuracy, completeness, relevance, task_success,
+                groundedness, hallucination, source_quality, source_attribution,
+            )
         }
         return EvaluationResult(
-            results=results, claims=claims, stability=pres.stability,
-            store=self._store, atoms=self._store.all(),
+            results=results, claims=claims, stability=pres.stability, store=self._store,
+            conformal=conformal, atoms=self._store.all(),
         )
+
+    def _calibrate_conformal(self) -> ConformalResult:
+        """Calibrate the (global) conformal threshold from the calibration set."""
+        cal = self._cfg.conformal
+        entails = self._providers.grounding.entails
+        points = [
+            (entails(ex.context, ex.claim).raw_score, ex.label, ex.stratum)
+            for ex in CalibrationStore(self._cfg).examples()
+        ]
+        stratifier = ConformalStratifier(ConformalCalibrator(cal.alpha, cal.min_calibration_n))
+        return stratifier.calibrate(points, cal.per_stratum)["__global__"]
+
+    @staticmethod
+    def _stamp_conformal(result: DimensionResult, conformal: ConformalResult) -> DimensionResult:
+        """Stamp the conformal guarantee band onto a dimension result's extra."""
+        extra = dict(result.extra)
+        extra.update(
+            conformal_band_low=conformal.band_low, conformal_band_high=conformal.band_high,
+            conformal_threshold=conformal.threshold,
+            conformal_abstained=1.0 if conformal.abstained else 0.0,
+        )
+        return result.model_copy(update={"extra": extra})
 
 
 def evaluate(

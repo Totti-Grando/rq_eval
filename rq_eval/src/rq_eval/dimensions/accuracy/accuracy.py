@@ -49,6 +49,7 @@ class AccuracyDimension(Dimension):
         export: ResponsivenessExport,
         weights: ImportanceWeights | None = None,
         grounded_export: GroundednessExport | None = None,
+        attribution_conformal_threshold: float | None = None,
     ) -> None:
         """Assemble graders/stubs from injected providers + config."""
         self._cfg = cfg
@@ -64,6 +65,7 @@ class AccuracyDimension(Dimension):
             GroundingGrader(
                 providers.grounding, logger, stamp.grounding(), "accuracy.attributed", seed
             ),
+            conformal_threshold=attribution_conformal_threshold,
         )
         residual = JudgeGrader(providers.judge, logger, stamp.judge(), "accuracy.residual", seed)
         weights = weights or ImportanceWeights(cfg.accuracy.importance_weighting)

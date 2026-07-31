@@ -11,7 +11,10 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from rq_eval.runner import EvaluationResult
 
-_ORDER = ("accuracy", "completeness", "relevance", "task_success")
+_ORDER = (
+    "accuracy", "completeness", "relevance", "task_success",
+    "groundedness", "hallucination", "source_quality", "source_attribution",
+)
 
 
 class ReportRenderer:

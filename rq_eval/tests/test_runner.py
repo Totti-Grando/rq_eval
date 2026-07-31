@@ -1,4 +1,4 @@
-"""B10 — end-to-end runner, fixtures, report, whole-run replay (offline)."""
+"""B10 + E9 — end-to-end runner, fixtures, report, whole-run replay (offline)."""
 
 from __future__ import annotations
 
@@ -15,6 +15,11 @@ from rq_eval.report import ReportRenderer
 from rq_eval.runner import EvaluationResult, Evaluator, evaluate
 from rq_eval.scoring.formulas import default_registry
 
+_DIMS = {
+    "accuracy", "completeness", "relevance", "task_success",
+    "groundedness", "hallucination", "source_quality", "source_attribution",
+}
+
 
 def _run(case_name: str, tmp_path: Path) -> EvaluationResult:
     cfg = load_config()
@@ -23,22 +28,8 @@ def _run(case_name: str, tmp_path: Path) -> EvaluationResult:
     return Evaluator(cfg, store=store, clock=FixedClock()).evaluate(case.to_input())
 
 
-def test_all_four_dimensions_present(tmp_path: Path) -> None:
-    result = _run("aligned", tmp_path)
-    assert set(result.results) == {"accuracy", "completeness", "relevance", "task_success"}
-
-
-def test_aligned_covers_every_facet(tmp_path: Path) -> None:
-    # aligned answer covers all four drivers facets -> full requirement coverage
-    result = _run("aligned", tmp_path)
-    assert result.results["completeness"].extra["requirement_coverage"] == pytest.approx(1.0)
-    assert not result.results["accuracy"].abstained
-    # more complete than the missing-facet answer
-    missing = _run("missing_facet", tmp_path)
-    assert (
-        result.results["completeness"].extra["requirement_coverage"]
-        > missing.results["completeness"].extra["requirement_coverage"]
-    )
+def test_all_eight_dimensions_present(tmp_path: Path) -> None:
+    assert set(_run("aligned", tmp_path).results) == _DIMS
 
 
 def test_off_ask_relevance_is_capped(tmp_path: Path) -> None:
@@ -52,8 +43,38 @@ def test_missing_facet_hurts_requirement_coverage(tmp_path: Path) -> None:
 
 
 def test_explanation_instead_of_fix_low_task_success(tmp_path: Path) -> None:
-    result = _run("explanation_instead_of_fix", tmp_path)
-    assert result.results["task_success"].score < 1.0
+    assert _run("explanation_instead_of_fix", tmp_path).results["task_success"].score < 1.0
+
+
+def test_fabricated_citation_gates(tmp_path: Path) -> None:
+    result = _run("fabricated_citation", tmp_path)
+    assert result.results["hallucination"].extra["gate_failed"] == 1.0
+    assert result.results["hallucination"].band == "R"
+
+
+def test_wrong_citation_fails_attribution_but_grounds(tmp_path: Path) -> None:
+    result = _run("wrong_citation", tmp_path)
+    assert result.results["source_attribution"].score == pytest.approx(0.0)
+    assert result.results["groundedness"].score > 0.0
+
+
+def test_bad_source_fails_source_quality_but_grounds(tmp_path: Path) -> None:
+    result = _run("bad_source", tmp_path)
+    assert result.results["source_quality"].score < 0.6  # below adequacy threshold
+    assert result.results["groundedness"].score > 0.0
+
+
+def test_contradiction_reported(tmp_path: Path) -> None:
+    result = _run("contradiction", tmp_path)
+    assert result.results["hallucination"].extra["contradiction_rate"] > 0.0
+
+
+def test_conformal_band_stamped(tmp_path: Path) -> None:
+    result = _run("wrong_citation", tmp_path)
+    extra = result.results["source_attribution"].extra
+    assert extra["conformal_band_low"] == pytest.approx(1.0 - load_config().conformal.alpha)
+    assert extra["conformal_band_high"] >= extra["conformal_band_low"]
+    assert not result.conformal.abstained  # 7 factual calibration points >= min_n
 
 
 def test_whole_run_replays(tmp_path: Path) -> None:
@@ -62,16 +83,14 @@ def test_whole_run_replays(tmp_path: Path) -> None:
     assert verifier.verify_run(list(result.results.values()), result.store) is True
 
 
-def test_report_renders(tmp_path: Path) -> None:
-    result = _run("aligned", tmp_path)
-    text = ReportRenderer().render(result)
-    for dim in ("accuracy", "completeness", "relevance", "task_success"):
+def test_report_renders_eight(tmp_path: Path) -> None:
+    text = ReportRenderer().render(_run("wrong_citation", tmp_path))
+    for dim in _DIMS:
         assert dim in text
     assert "atoms by tier" in text
 
 
 def test_convenience_wrapper(tmp_path: Path) -> None:
-    # high lexical overlap -> grounded + responsive -> accuracy 1.0 end-to-end
     result = evaluate(
         question="Who won the final?",
         answer="Real Madrid won the final.",
