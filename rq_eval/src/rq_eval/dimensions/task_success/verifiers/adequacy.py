@@ -21,10 +21,14 @@ class AdequacyVerifier(Verifier):
         self._judge = judge
 
     def verify(self, outcome: Outcome, ctx: VerifyContext) -> AtomRecord:
-        """Judge whether the answer adequately achieves the outcome."""
+        """Judge whether the answer adequately achieves the outcome.
+
+        Reference-grounded (R5) on the pinned outcome template so the judge isn't
+        a no-reference (over-generous) verdict.
+        """
         cues = " ".join(str(c) for c in outcome.params.get("cues", []))
         return self._judge.judge(
             subject=f"outcome:{outcome.id}", role="outcome",
             question=f"[[overlap:0.34]] {cues}", context=ctx.answer,
-            weight=outcome.weight, tier="T3",
+            reference=outcome.text, weight=outcome.weight, tier="T3",
         )

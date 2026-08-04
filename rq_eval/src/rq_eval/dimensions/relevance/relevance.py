@@ -119,10 +119,12 @@ class RelevanceDimension(Dimension):
     def _maybe_abstain(self, question: str, answer: str) -> AtomRecord | None:
         """Return an abstain-relevant atom iff a proper decline to unanswerable."""
         is_decline = self._decline.judge(
-            subject="answer", role="decline", question=_DECLINE, context=answer
+            subject="answer", role="decline", question=_DECLINE, context=answer,
+            reference=question,
         ).verdict
         is_unanswerable = self._unans.judge(
-            subject="answer", role="unanswerable", question=_UNANSWERABLE, context=question
+            subject="answer", role="unanswerable", question=_UNANSWERABLE, context=question,
+            reference=answer,
         ).verdict
         if is_decline and is_unanswerable:
             return self._logger.record(

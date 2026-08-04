@@ -90,11 +90,11 @@ class ClaimAccuracy:
             grounded = d.grounded_export.atom(claim.id)  # the SAME atom groundedness logged
             out.append(grounded)
         elif not source_text:
-            # unsourced residual: truth-judge [T3]
+            # unsourced residual: truth-judge [T3], reference-grounded on the corpus (R5)
             out.append(
                 d.residual_truth.judge(
-                    subject=claim.id, role="grounded", question=_RESIDUAL_TRUTH,
-                    context=claim.text, weight=w, tier="T3",
+                    subject=claim.id, role="unsourced_residual", question=_RESIDUAL_TRUTH,
+                    context=claim.text, reference=(source_text or None), weight=w, tier="T3",
                 )
             )
             return out
