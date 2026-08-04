@@ -76,13 +76,17 @@ class ThresholdsConfig(BaseModel):
 
 
 class CompletenessConfig(BaseModel):
-    """§2 knobs — abstention floor, vitality weighting, dedupe cutoff."""
+    """§2 knobs — reference mode, abstention floor, vitality weighting, dedupe cutoff."""
 
     model_config = _Strict
     min_n: int = Field(ge=0)
     vital_weighting: bool
     dedupe_tau: float = Field(ge=0.0, le=1.0)
     double_nli: bool
+    # reference assurance mode (§2): generated (default/open-domain) | archetype | templated
+    reference_mode: Literal["generated", "archetype", "templated"] = "generated"
+    # human-recall-sample of should-contain facts; "" disables the error-bar hook
+    recall_sample_path: str = ""
 
 
 class AccuracyConfig(BaseModel):
@@ -188,6 +192,7 @@ class PinsConfig(BaseModel):
     triplet_extractor_version: str
     nuggetizer_version: str
     template_version: str
+    archetype_version: str
     reliability_version: str
     coi_version: str
     calibration_version: str
@@ -211,6 +216,7 @@ class PathsConfig(BaseModel):
     atom_log: str
     atom_log_backend: Literal["jsonl", "sqlite"]
     requirement_templates: str
+    question_archetypes: str
     task_templates: str
     prompts: str
     runs_dir: str

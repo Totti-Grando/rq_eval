@@ -1,0 +1,64 @@
+# Completeness question-shape ARCHETYPES — the middle assurance mode (§2).
+#
+# A small, fixed, domain-INDEPENDENT set of question shapes. Each archetype
+# carries a generic requirement *pattern* (the facets that shape demands) that is
+# instantiated for any question of that shape — the model instantiates a fixed
+# structure rather than inventing facets (bounded structure against a scaffold).
+# `match` keywords select the shape (first match wins; else `default`).
+#
+# Pinned by pins.archetype_version. Human-fixed and finite even when topics aren't.
+
+version: archetypes-v1
+
+archetypes:
+  comparison:
+    match: [compare, versus, vs, difference, better, worse, or]
+    requirements:
+      - {id: option_a, text: "the first option's key points", vital: true}
+      - {id: option_b, text: "the second option's key points", vital: true}
+      - {id: criteria, text: "the stated comparison criteria", vital: true}
+      - {id: verdict, text: "a comparative verdict", vital: true}
+
+  causal_explanation:
+    match: [why, cause, causes, driver, drivers, reason, because, led to, due to]
+    requirements:
+      - {id: outcome, text: "the outcome being explained", vital: true}
+      - {id: causes, text: "the causal factors behind it", vital: true}
+      - {id: mechanism, text: "how the causes produced the outcome", vital: false}
+
+  enumeration:
+    match: [list, enumerate, what are, name the, examples of]
+    requirements:
+      - {id: items, text: "the items the question asks to enumerate", vital: true}
+      - {id: completeness, text: "coverage of all relevant items", vital: true}
+
+  procedure:
+    match: [how do, how to, steps, procedure, process]
+    requirements:
+      - {id: steps, text: "the ordered steps", vital: true}
+      - {id: prerequisites, text: "any prerequisites or inputs", vital: false}
+
+  definition:
+    match: [what is, define, definition, meaning of]
+    requirements:
+      - {id: definition, text: "the core definition", vital: true}
+      - {id: distinction, text: "distinguishing features or examples", vital: false}
+
+  recommendation:
+    match: [should, recommend, advise, best, worth]
+    requirements:
+      - {id: recommendation, text: "the recommendation", vital: true}
+      - {id: rationale, text: "the rationale for it", vital: true}
+      - {id: tradeoffs, text: "key trade-offs or risks", vital: false}
+
+  factual_lookup:
+    match: [who, when, where, which, how many, how much]
+    requirements:
+      - {id: answer, text: "the specific fact the question asks for", vital: true}
+      - {id: qualifier, text: "any qualifying context (date, unit, scope)", vital: false}
+
+  default:
+    match: []
+    requirements:
+      - {id: main_point, text: "the main point the question asks for", vital: true}
+      - {id: supporting, text: "supporting detail or evidence", vital: false}

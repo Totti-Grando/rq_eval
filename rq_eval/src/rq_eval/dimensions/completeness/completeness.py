@@ -16,6 +16,8 @@ from rq_eval.contracts import DimensionResult, EvalInput
 from rq_eval.dimensions.base import Dimension
 from rq_eval.dimensions.completeness.admissibility_gate import UnitAdmissibilityGate
 from rq_eval.dimensions.completeness.deduper import UnitDeduper
+from rq_eval.dimensions.completeness.recall_sample import RecallSample
+from rq_eval.dimensions.completeness.reference import ReferenceModeSelector
 from rq_eval.dimensions.completeness.requirement_templates import RequirementTemplates
 from rq_eval.dimensions.completeness.two_level_scoring import TwoLevelScoring
 from rq_eval.dimensions.completeness.unit import Unit
@@ -49,6 +51,12 @@ class CompletenessDimension(Dimension):
         stamp = ModelStamp(cfg)
         seed = cfg.seeds.judge
         self._templates = RequirementTemplates(cfg)
+        self._reference = ReferenceModeSelector(cfg, providers.generator, self._templates)
+        self._recall_sample = RecallSample(
+            cfg.resolve(cfg.completeness.recall_sample_path)
+            if cfg.completeness.recall_sample_path
+            else None
+        )
         self._drafter = UnitDrafter(providers.generator, providers.nlp, cfg.seeds.dedupe)
         self._gate = UnitAdmissibilityGate(
             T1Tools(), providers.nlp,
@@ -75,7 +83,7 @@ class CompletenessDimension(Dimension):
 
     def evaluate(self, eval_input: EvalInput) -> DimensionResult:
         """Build the frozen unit set, assign, and score strict vital recall."""
-        requirements = self._templates.requirements_for(eval_input.question)
+        requirements = self._reference.requirements_for(eval_input.question)
         sources = " ".join(c.text for c in eval_input.context)
         candidates: list[Unit] = []
         for req in requirements:
@@ -93,21 +101,25 @@ class CompletenessDimension(Dimension):
         vital_supported = sum(1 for a in vital_atoms if a.verdict)
         low, high = WilsonInterval().interval(vital_supported, vital_total)
         abstained = MinNAbstention().should_abstain(vital_total, self._cfg.completeness.min_n)
+        extra = {
+            "requirement_coverage": self._scorer.requirement_coverage(
+                frozen, support, requirements
+            ),
+            "weighted_recall": self._scorer.weighted_recall(
+                frozen, support, requirements, self._cfg.completeness.vital_weighting
+            ),
+            "vital_units": float(vital_total),
+            "total_units": float(len(frozen)),
+        }
+        miss = self._recall_sample.miss_rate(eval_input.question, [u.text for u in frozen])
+        if miss is not None:
+            extra["recall_miss_rate"] = miss  # completeness's honest error bar
         return DimensionResult(
             dimension=self.name, score=score, band=self._bands.band(score),
             ci_low=low, ci_high=high, n=vital_total,
             inputs_hash=self._corpus_hash(sources, eval_input.answer),
             atom_ids=[a.id for a in vital_atoms], formula_id=_FORMULA, abstained=abstained,
-            extra={
-                "requirement_coverage": self._scorer.requirement_coverage(
-                    frozen, support, requirements
-                ),
-                "weighted_recall": self._scorer.weighted_recall(
-                    frozen, support, requirements, self._cfg.completeness.vital_weighting
-                ),
-                "vital_units": float(vital_total),
-                "total_units": float(len(frozen)),
-            },
+            extra=extra, assurance_mode=self._reference.mode,
         )
 
     def _log_frozen_set(self, units: list[Unit], sources: str) -> None:

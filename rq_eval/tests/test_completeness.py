@@ -23,8 +23,16 @@ from rq_eval.scoring.formulas import default_registry
 _QUESTION = "What were the key drivers of the revenue decline?"
 
 
-def _dim(store_path: Path):
+def _templated_cfg():
+    """Config pinned to the templated reference mode (multi-facet scaffold)."""
     cfg = load_config()
+    return cfg.model_copy(
+        update={"completeness": cfg.completeness.model_copy(update={"reference_mode": "templated"})}
+    )
+
+
+def _dim(store_path: Path):
+    cfg = _templated_cfg()
     store = JsonlAtomStore(store_path)
     logger = AtomLogger(store, FixedClock())
     dim = CompletenessDimension(ProviderFactory(cfg).build(), cfg, logger)

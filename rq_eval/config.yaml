@@ -37,6 +37,8 @@ completeness:
   vital_weighting: true      # weight per-requirement recall by vitality
   dedupe_tau: 0.85           # cosine cutoff for near-duplicate unit clustering
   double_nli: true           # decidability via context vs context+corpus NLI agreement (R3)
+  reference_mode: generated  # generated (open-domain default) | archetype | templated (§2)
+  recall_sample_path: config/completeness_recall_sample.jsonl  # human should-contain error bar ("" disables)
 
 accuracy:
   importance_weighting: true # weight claims by vital/okay from completeness units
@@ -96,6 +98,7 @@ pins:                        # frozen reference versions (reproducibility fence,
   triplet_extractor_version: triplet-extractor-v1
   nuggetizer_version: nuggetizer-v1
   template_version: templates-v1
+  archetype_version: archetypes-v1
   reliability_version: reliability-v1
   coi_version: coi-v1
   calibration_version: calibration-v1
@@ -111,6 +114,7 @@ paths:
   atom_log: runs/atoms.jsonl
   atom_log_backend: jsonl                        # jsonl | sqlite
   requirement_templates: config/requirement_templates.yaml
+  question_archetypes: config/question_archetypes.yaml
   task_templates: config/task_templates.yaml
   prompts: config/prompts
   runs_dir: runs

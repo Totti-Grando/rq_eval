@@ -210,3 +210,6 @@ class DimensionResult(BaseModel):
     formula_id: str
     abstained: bool = False
     extra: dict[str, float] = Field(default_factory=dict)  # e.g. requirement_coverage
+    # §2 completeness: which reference-assurance mode produced the score
+    # (generated | archetype | templated); None for dimensions that don't stamp it.
+    assurance_mode: str | None = None

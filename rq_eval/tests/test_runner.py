@@ -38,8 +38,16 @@ def test_off_ask_relevance_is_capped(tmp_path: Path) -> None:
 
 
 def test_missing_facet_hurts_requirement_coverage(tmp_path: Path) -> None:
-    result = _run("missing_facet", tmp_path)
+    # requirement coverage is a multi-facet signal -> pin the templated scaffold
+    cfg = load_config()
+    cfg = cfg.model_copy(
+        update={"completeness": cfg.completeness.model_copy(update={"reference_mode": "templated"})}
+    )
+    case = next(c for c in FixtureSuite().cases() if c.name == "missing_facet")
+    store = JsonlAtomStore(tmp_path / "missing_facet.jsonl")
+    result = Evaluator(cfg, store=store, clock=FixedClock()).evaluate(case.to_input())
     assert result.results["completeness"].extra["requirement_coverage"] < 1.0
+    assert result.results["completeness"].assurance_mode == "templated"
 
 
 def test_explanation_instead_of_fix_low_task_success(tmp_path: Path) -> None:
