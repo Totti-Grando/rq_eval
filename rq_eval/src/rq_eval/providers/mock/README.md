@@ -26,5 +26,5 @@ enough to exercise every downstream code path and to make tests deterministic.
 **Determinism:** fully deterministic given the config seeds; identical inputs
 always yield identical outputs.
 
-**How to extend:** add a `[[tag]]` handler in `MockJudgeProvider` /
+**How to extend:** add a `[[tag]]` handler in `MockScoringJudge` /
 `MockGeneratorProvider` when a new phase needs a specific deterministic verdict.

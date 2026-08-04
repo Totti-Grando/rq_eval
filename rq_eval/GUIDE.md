@@ -83,7 +83,7 @@ its `§`/step + tier. Open the folder's `README.md` for the formulas.
 
 ## 3. Non-negotiable invariants (don't break these)
 
-1. **Booleans/labels only from models.** `JudgeProvider.binary -> bool`;
+1. **Booleans/labels only from models.** `ScoringJudge.binary -> bool` (the read-only `ExplanationJudge` is separate);
    `GroundingProvider.entails -> {E|N|C}`; generation returns text, never a
    number. Float→boolean thresholding happens in the **grader/dimension** layer
    from config, never in the provider. `scoring/` imports no model code (tested).
@@ -153,7 +153,8 @@ live. Each has a real implementation already written behind the same interface �
 
 | Provider (interface) | Mock (now) — lexical | Live replacement | Selected by |
 |---|---|---|---|
-| `JudgeProvider` | seeded-hash / `[[tag]]` token-overlap verdicts | **Bedrock Claude** (Converse, strict YES/NO) — `live/judge.py` | `providers.mode: live` |
+| `ScoringJudge` | seeded-hash / `[[tag]]` token-overlap verdicts | **Bedrock Claude** (Converse, strict YES/NO, reference-grounded) — `live/judge.py` | `providers.mode: live` |
+| `ExplanationJudge` (read-only) | templated summary stub | **Bedrock Claude** run summary — `live/explanation.py` | `providers.mode: live` |
 | `GeneratorProvider` | `[[triplets]]/[[sentences]]/[[repeat]]` parse splitters | **Bedrock Claude** text gen — `live/generator.py` | `providers.mode: live` |
 | `EmbeddingProvider` | hashed bag-of-tokens vectors | **Titan Text Embeddings v2** — `live/embedding.py` | `providers.mode: live` + `models.embed_id` |
 | `GroundingProvider` (E/N/C) | token coverage ≥ `entail_tau` → E; negation-mismatch → C | **Bedrock Guardrails** contextual grounding (E/N) *or* **fairseq RoBERTa-MNLI** (native E/N/C) | `models.nli: bedrock \| fairseq` |

@@ -21,17 +21,17 @@ pinned generation · **T3** judge · **oracle** human-maintained config.
 | `json` (stdlib) | JSONL atom store, calibration set, prompt files | audit, pipeline | used |
 | `sqlite3` (stdlib) | optional atom store backend | `audit/sqlite_atom_store.py` | used |
 | `urllib` (stdlib) | live URL/DOI reachability (fabrication + source reachable) | `live/resolver.py` | used (live) |
-| **boto3** | Bedrock **Converse** (judge+generator), Titan **InvokeModel** (embeddings), **ApplyGuardrail** (grounding+relevance) | `providers/live/` | live only (lazy) |
+| **boto3** | Bedrock **Converse** (`ScoringJudge` + read-only `ExplanationJudge` + generator), Titan **InvokeModel** (embeddings), **ApplyGuardrail** (grounding+relevance) | `providers/live/` | live only (lazy) |
 | **spaCy** `en_core_web_lg` | live sentence segmentation | `live/nlp.py` | live only (lazy) |
 | **coreferee** | live coreference resolution (decontextualization) | `live/nlp.py` | live only (lazy) |
 | **torch + fairseq** (RoBERTa-large-MNLI) | optional native 3-way NLI (real Contradiction) | `live/grounding_fairseq.py` | live, optional (lazy) |
 | pytest, hypothesis, mypy, ruff | tests + typing + lint | `tests/`, CI | dev |
-| ~~numpy, scipy~~ | listed in `requirements.txt` | — | **declared, NOT imported** (math is pure-stdlib) |
-| ~~ragas~~ | listed in `requirements-live.txt` | — | **declared, NOT imported** (Method A reimplemented on Bedrock+Titan) |
+| ~~numpy, scipy~~ | were in the design's tool list | — | **pruned in R6** — all statistics are stdlib `math` (see the note in `requirements.txt`) |
+| ~~ragas~~ | was in the design's live tool list | — | **pruned in R6** — Method A reimplements the RAGAS *method* on Bedrock+Titan (note in `requirements-live.txt`) |
 
-> The three struck-through packages can be removed from the requirements files;
-> they were named in the design's tool lists but the implementation uses stdlib
-> `math` and a direct Method-A implementation instead.
+> The three packages named in the design's tool lists were removed from the
+> requirements files during R6; the implementation uses stdlib `math` and a
+> direct Method-A implementation instead.
 
 ### The one verifier, three premises (design §6)
 `GroundingProvider.entails(premise, hypothesis) -> {label∈E/N/C, raw_score}` is
@@ -88,7 +88,7 @@ Inputs: answer claims + retrieved context + citations. Per claim, four booleans 
 | + numeric edge | T1 | `T1Tools` (`re`) | if claim has a number: `|na−nb| ≤ tolerance·max(|na|,|nb|)` vs source (NOT NLI) |
 | source-adequate? | T1/T2/T3 | `SourceQualityProvider` | `source_quality ≥ adequacy_threshold` (§3) |
 | attributed? | T2 | entails on cited chunk + conformal | `Attributable ∧ confidence ≥ threshold` (§4/§5) |
-| responsive? | T2 | relevance/judge | imported atom from §3 |
+| responsive? | T1+T2 | relevance (NLI+lexical, no judge) | imported atom from §3 |
 | unsourced residual | T3 | judge (Bedrock Claude) | when no context: truth-judge boolean |
 | **score** | code | `conjunction_weighted_mean` | `claim_correct = AND(the four)`; `accuracy = Σ correct·w / Σ w`; `w` = importance weight (toggle) |
 | CI / band | code | Wilson / BandMapper | Wilson over (correct claims, #claims) |
@@ -100,7 +100,7 @@ Inputs: question + sources + requirement templates.
 |---|---|---|---|
 | Tier-1 requirements | oracle | `config/requirement_templates.yaml` | question-type → facets (each `vital` flag) |
 | Tier-2 units | T3g | generator (parse → Bedrock) | top-down (from requirement) + bottom-up (source sentences overlapping the requirement) |
-| admissibility gate | T1+T2+T3 | `T1Tools` + coref + judge | atomic (`re` conjunction-split) ∧ self-contained (no leading pronoun after coref) ∧ decidable (judge) → freeze |
+| admissibility gate | T1+T2 | `T1Tools` + coref + double-NLI | atomic (`re` split) ∧ self-contained (coref) ∧ decidable (**double-NLI**: entails(answer,unit) vs entails(answer+sources,unit) agree; disagreement → reference-grounded residual judge) → freeze |
 | dedupe | T2 | embeddings cosine | drop unit if `cos ≥ dedupe_tau` with a kept unit |
 | assign (support) | T2 | entails (answer = premise, unit = hypothesis) | supported ⟺ `label == E` |
 | **score** | code | `mean` over vital support atoms | `strict_vital_recall = |vital supported| / |vital|` |
@@ -115,7 +115,7 @@ Inputs: question + answer.
 | Method A (diagnostic) | T3g+T2 | generator + embeddings | `AR = (1/N) Σ cos(E_question, E_reverseQ_i)` |
 | Method B (gate, default) | T2 | relevance (jaccard → Guardrail) | raw query↔response score |
 | per-claim on-topic | T2 | relevance | `relevance(question, claim) ≥ relevance_tau` |
-| per-claim on-ask | T2* | judge coverage | `overlap(question, claim) ≥ 0.5` (`[[overlap:0.5]]`; a judge call in live) |
+| per-claim on-ask | T1+T2 | NLI + lexical (no judge) | `on_ask = entails(claim, ask)==E ∨ key_term_overlap(question, claim) ≥ lexical_min_overlap` (DIVER-QA) |
 | responsive atom (exported) | T2 | code | `on_topic ∧ on_ask` → imported by accuracy |
 | abstention | T3 | judge | proper decline to unanswerable → score `1.0` |
 | **score** | code | `relevance_capped_mean` | `mean(responsive)`, capped at `off_ask_cap` if answer-level on-ask is False |
@@ -174,7 +174,7 @@ Per source (internal-corpus chunks with no url/domain pass the metadata checks b
 | reputable domain | T1 | `reliability_list.yaml` | deny→False; allow→True; unknown (allow-list set)→False |
 | corroborated | T1 | entails + count | `|distinct domain/author among sources that entail the claim| ≥ corroboration_min` |
 | supports the claim | T2 | entails | `entails(source, claim) == E` |
-| disinterested | T3 | judge (sampled) | sampled at `disinterest_sample_rate` (else assumed True) |
+| disinterested | T1 (rule) · T3 (residual) | `CoiRule` + sampled judge | `¬(denylisted ∨ affiliation_conflict)` where decisive; only the ambiguous remainder samples a judge at `disinterest_sample_rate` |
 | **score / adequate** | code | `mean` | `source_quality = mean(properties)`; `source-adequate? = score ≥ adequacy_threshold` |
 
 ### §4 source_attribution — ALCE citation precision

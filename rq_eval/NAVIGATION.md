@@ -16,7 +16,7 @@ Legend for tier: **T1** code · **T2** fixed model (thresholded in code) ·
 |---|---|---|
 | Config schema + loader (sole reader) | `src/rq_eval/config.py` | `Config` (+ nested `*Config`), `load_config`, `load_yaml`, `get_config` |
 | Typed records (contracts) | `src/rq_eval/contracts.py` | `ContextChunk`, `EvalInput`, `Claim`, `Triplet`, `AtomRecord`, `DimensionResult`, `CalibrationExample` |
-| Provider interfaces + result types | `src/rq_eval/providers/base.py` | `JudgeProvider`, `GeneratorProvider`, `EmbeddingProvider`, `GroundingProvider`+`EntailmentResult`, `RelevanceProvider`, `NlpProvider`, `ResolverProvider`, `SourceQualityProvider`, `AttributionProvider`+`AttributionResult` |
+| Provider interfaces + result types | `src/rq_eval/providers/base.py` | `ScoringJudge`, `ExplanationJudge`, `GeneratorProvider`, `EmbeddingProvider`, `GroundingProvider`+`EntailmentResult`, `RelevanceProvider`, `NlpProvider`, `ResolverProvider`, `SourceQualityProvider`, `AttributionProvider`+`AttributionResult` |
 | Construction (the ONLY constructor) | `src/rq_eval/providers/factory.py` | `ProviderFactory`, `Providers` |
 | Atom model+version stamps | `src/rq_eval/providers/model_stamp.py` | `ModelStamp` |
 | Mock impls (lexical, offline) | `src/rq_eval/providers/mock/*.py` | `MockJudge/Generator/Embedding/Grounding/Relevance/Nlp/ResolverProvider`, `DeterministicText` |
@@ -69,7 +69,7 @@ Records → `contracts.py`. Atom log + replay → `audit/` (`AtomLogger`,
 |---|---|---|
 | 1 Tier-1 requirements | oracle | `requirement_templates.py::RequirementTemplates`, `Requirement` (data: `config/requirement_templates.yaml`) |
 | 2 Tier-2 units (top-down + bottom-up) | T3g | `unit_drafter.py::UnitDrafter` (unit shape: `unit.py::Unit`) |
-| 3 Admissibility gate (atomic/self-contained/decidable) | T1+T2+T3 | `admissibility_gate.py::UnitAdmissibilityGate` |
+| 3 Admissibility gate (atomic/self-contained/decidable) | T1+T2 (T3 residual only on double-NLI disagreement) | `admissibility_gate.py::UnitAdmissibilityGate` |
 | 4 Merge/dedupe | T2 | `deduper.py::UnitDeduper` |
 | 5 Label vital/okay | (from oracle) | inherited from Tier-1 `vital` flag (see `GUIDE.md` §9) |
 | 6 Assign (unit support) | T2 | `unit_assigner.py::UnitAssigner` |
@@ -84,10 +84,10 @@ Records → `contracts.py`. Atom log + replay → `audit/` (`AtomLogger`,
 | 1 Method A (reverse-questions + cosine) | T3g+T2 | `method_a.py::MethodAReverseQuestions` |
 | 2 Method B (guardrail relevance, default) | T2 | `method_b.py::MethodBGuardrail` |
 | 3 Answer-level on-topic / on-ask | T2 | `relevance.py::RelevanceDimension` |
-| 4 Claim-level responsive atom (exported) | T2 | `claim_responsiveness.py::ClaimResponsiveness` → `responsiveness.py::ResponsivenessExport` |
+| 4 Claim-level responsive atom (on-topic ∧ on-ask) | T1+T2 (no judge) | `claim_responsiveness.py::ClaimResponsiveness` → `responsiveness.py::ResponsivenessExport` |
+| 4a on-ask = NLI ∨ lexical | T2 (`GroundingGrader`) + T1 (`T1Tools.key_term_overlap`) | `claim_responsiveness.py` (DIVER-QA on-ask) |
 | 5 Combine + off-ask cap | code | `scoring/formulas.py::RelevanceCappedMeanFormula`, `scoring/aggregation.py::OffAskCap` |
-| 6 Abstention (decline/unanswerable) | T3 | `relevance.py::RelevanceDimension._maybe_abstain` |
-| 7 Residual (different sub-question) | T3 | `claim_responsiveness.py` (residual grader) |
+| 6 Abstention (decline/unanswerable, reference-grounded) | T3 | `relevance.py::RelevanceDimension._maybe_abstain` |
 
 ## RQ §4 — task_success (verifier-routed)  → `src/rq_eval/dimensions/task_success/`
 
