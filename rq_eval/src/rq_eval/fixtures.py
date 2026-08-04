@@ -116,4 +116,14 @@ class FixtureSuite:
                 answer="The sky is not blue today.",
                 context=[ContextChunk(id="chunk-1", text="The sky is blue and clear today.")],
             ),
+            FixtureCase(
+                name="self_citation",
+                note="claim about Acme cited to Acme's own PR -> COI (disinterest) conflict",
+                question="How did Acme perform last quarter?",
+                answer="Acme grew revenue twenty percent [chunk-1].",
+                context=[ContextChunk(
+                    id="chunk-1", text="Acme grew revenue twenty percent last quarter.",
+                    url="https://acme.com/pr", domain="acme.com", author="Acme Investor Relations",
+                )],
+            ),
         ]
