@@ -82,6 +82,7 @@ class CompletenessConfig(BaseModel):
     min_n: int = Field(ge=0)
     vital_weighting: bool
     dedupe_tau: float = Field(ge=0.0, le=1.0)
+    double_nli: bool
 
 
 class AccuracyConfig(BaseModel):

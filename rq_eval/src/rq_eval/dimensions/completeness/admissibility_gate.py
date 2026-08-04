@@ -38,6 +38,7 @@ class UnitAdmissibilityGate:
         grounding: GroundingGrader,
         residual: JudgeGrader,
         logger: AtomLogger,
+        double_nli: bool = True,
     ) -> None:
         """Inject T1 tools, NLP (coref), the double-NLI grounding grader + residual."""
         self._t1 = t1
@@ -45,6 +46,7 @@ class UnitAdmissibilityGate:
         self._grounding = grounding
         self._residual = residual
         self._logger = logger
+        self._double_nli = double_nli
 
     def admit(self, units: list[Unit], answer: str, sources: str) -> list[Unit]:
         """Return the frozen admissible unit set (atomic + self-contained + decidable)."""
@@ -70,6 +72,8 @@ class UnitAdmissibilityGate:
     def _decidable(self, unit: Unit, text: str, answer: str, sources: str) -> tuple[bool, str]:
         """Double-NLI: agree ⟹ decidable; disagreement ⟹ reference-grounded residual."""
         label_answer = self._grounding.classify(premise=answer, hypothesis=text).label
+        if not self._double_nli:  # single-NLI mode: decidable ⟺ answer entails the unit
+            return label_answer == "E", "single_nli"
         label_corpus = self._grounding.classify(
             premise=f"{answer} {sources}".strip(), hypothesis=text
         ).label

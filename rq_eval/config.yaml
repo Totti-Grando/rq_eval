@@ -36,6 +36,7 @@ completeness:
   min_n: 10                  # abstain when < this many vital units
   vital_weighting: true      # weight per-requirement recall by vitality
   dedupe_tau: 0.85           # cosine cutoff for near-duplicate unit clustering
+  double_nli: true           # decidability via context vs context+corpus NLI agreement (R3)
 
 accuracy:
   importance_weighting: true # weight claims by vital/okay from completeness units

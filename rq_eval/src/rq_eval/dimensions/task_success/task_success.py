@@ -43,7 +43,9 @@ if TYPE_CHECKING:
     from rq_eval.providers.factory import Providers
 
 _FORMULA = "task_success_weighted"
-_IMPOSSIBLE = "[[overlap:0.6]] cannot done impossible because"
+# [T1] well-scoped impossibility: an impossibility marker + a stated reason.
+_IMPOSSIBLE_MARKERS = ("cannot", "can't", "impossible", "not possible", "unable to")
+_IMPOSSIBLE_REASON = ("because", "due to", "since ")
 
 
 class TaskSuccessDimension(Dimension):
@@ -60,9 +62,6 @@ class TaskSuccessDimension(Dimension):
         self._templates = TaskTemplates(cfg)
         self._objective = ObjectiveInference(providers.generator, seed)
         self._decomposer = OutcomeDecomposer(providers.generator, seed)
-        self._impossible_judge = JudgeGrader(
-            providers.judge, logger, stamp.judge(), "task_success.impossible", seed
-        )
         self._router = self._build_router(providers, cfg, logger, stamp, seed)
         self._registry = default_registry()
         self._bands = BandMapper(cfg.thresholds.bands.G, cfg.thresholds.bands.A)
@@ -103,9 +102,7 @@ class TaskSuccessDimension(Dimension):
             question=q, answer=a, context_text=" ".join(c.text for c in eval_input.context)
         )
 
-        impossible = self._impossible_judge.judge(
-            subject="task", role="impossible_success", question=_IMPOSSIBLE, context=a, tier="T3"
-        )
+        impossible = self._impossible(a)
         if impossible.verdict:  # well-scoped "can't be done because X" == success
             score = self._registry.compute(_FORMULA, [impossible])
             return DimensionResult(
@@ -131,10 +128,22 @@ class TaskSuccessDimension(Dimension):
             extra={"achieved": float(achieved), "required": float(len(atoms))},
         )
 
+    def _impossible(self, answer: str) -> AtomRecord:
+        """[T1] Well-scoped impossibility: an impossibility marker + a stated reason."""
+        low = answer.lower()
+        verdict = any(m in low for m in _IMPOSSIBLE_MARKERS) and any(
+            r in low for r in _IMPOSSIBLE_REASON
+        )
+        return self._logger.record(
+            subject="task", role="impossible_success", question="well-scoped impossibility?",
+            tier="T1", verdict=verdict, evidence="marker+reason",
+            grader_id="task_success.impossible", model="code", model_version="rq_eval",
+        )
+
     def _log_task_type(self, task_type: str) -> None:
         """Record the classified task type for audit (not part of the score)."""
         self._logger.record(
-            subject="task", role="task_type", question="task-type classification", tier="T3",
+            subject="task", role="task_type", question="task-type classification", tier="T1",
             verdict=True, evidence=f"type={task_type} taxonomy={self._templates.version}",
             grader_id="task_success.classify", model="code", model_version="rq_eval",
         )

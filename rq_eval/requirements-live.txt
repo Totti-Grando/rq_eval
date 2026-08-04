@@ -18,8 +18,9 @@ spacy>=3.7,<3.9
 coreferee>=1.4,<2.0
 # spaCy English model is installed by install.sh via `spacy download en_core_web_lg`
 
-# RAGAS answer-relevancy (Method A) pointed at Bedrock + Titan (no HF models)
-ragas>=0.2,<0.4
+# NOTE: the `ragas` package is intentionally NOT required — Method A implements
+# the RAGAS answer-relevancy *method* directly on Bedrock generator + Titan
+# embeddings (see dimensions/relevance/method_a.py), importing no HF/ragas code.
 
 # OPTIONAL local NLI — fairseq RoBERTa-MNLI via torch.hub (non-HF).
 # Comment these back in only if you want local NLI; otherwise use Bedrock NLI.

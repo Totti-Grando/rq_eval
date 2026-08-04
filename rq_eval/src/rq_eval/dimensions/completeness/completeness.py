@@ -59,6 +59,7 @@ class CompletenessDimension(Dimension):
                 providers.judge, logger, stamp.judge(), "completeness.decidability_residual", seed
             ),
             logger,
+            double_nli=cfg.completeness.double_nli,
         )
         self._deduper = UnitDeduper(providers.embedding, cfg.completeness.dedupe_tau)
         vital_w = 2.0 if cfg.completeness.vital_weighting else 1.0

@@ -10,6 +10,7 @@ what accuracy calls; `SourceQualityDimension` reports the category score.
 
 **Classes:**
 - `ReliabilityList` — [oracle] pinned domain allow/deny YAML.
+- `CoiRule` — [T1] conflict-of-interest oracle (`config/coi_denylist.yaml` + affiliation match).
 - `SourceQualityScorer` — the seven property checks (logs one atom each).
 - `SourceQualityProviderImpl` — `adequate = score ≥ adequacy_threshold` (accuracy import).
 - `SourceQualityDimension` — per-source score, averaged across the answer's sources.
@@ -18,16 +19,20 @@ what accuracy calls; `SourceQualityDimension` reports the category score.
 - properties: reachable [T1], dated&fresh [T1] (`date ≤ as_of_date`), authored [T1],
   reputable-domain [T1] (reliability list), corroborated [T1] (`|distinct supporting
   domains/authors| ≥ corroboration_min`), supports-claim [T2] (`entails == E`),
-  disinterested [T3, sampled at `disinterest_sample_rate`, else assumed true].
+  **disinterested [T1 COI rule]** (`¬(denylisted ∨ affiliation_conflict)` when
+  decisive; only the ambiguous remainder samples a residual judge at
+  `disinterest_sample_rate`).
 - `source_quality = mean(the seven property booleans)` per source.
 - `source-adequate? = source_quality ≥ adequacy_threshold`.
 - internal-corpus sources (no url/domain) satisfy the metadata checks by
   construction (Nexa profile); no cited source → `source_adequate_default`.
 
-**Determinism:** six of seven properties are T1/T2 and replay; only the sampled
-disinterest check is a judge, and at `disinterest_sample_rate: 0.0` (offline
-default) it is assumed true → fully deterministic.
+**Determinism:** disinterest is now a **T1 COI rule** wherever it applies (the
+old sampled judge is gone except for the genuinely ambiguous remainder), so with
+`disinterest_sample_rate: 0.0` the whole dimension is deterministic; a self-
+citation (source org == claim subject) is flagged conflicted with no judge.
 
-**How to extend:** edit `config/reliability_list.yaml` (bump `reliability_version`);
-tune `adequacy_threshold`/`corroboration_min`/`as_of_date`; raise
-`disinterest_sample_rate` on the target to actually sample the judge.
+**How to extend:** edit `config/reliability_list.yaml` (bump `reliability_version`)
+and `config/coi_denylist.yaml` (bump `coi_version`); tune `adequacy_threshold`/
+`corroboration_min`/`as_of_date`; raise `disinterest_sample_rate` to sample the
+residual judge on the ambiguous remainder.

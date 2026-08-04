@@ -38,6 +38,22 @@ atoms + a formula id with no model call.
 5. `runner` renders a report; the `audit/` replay verifier recomputes every
    score from the log with no model call and asserts equality.
 
+### The two judge roles (judge-minimizing reform)
+
+Two provider interfaces enforce "explain, never override" structurally:
+
+- **`ScoringJudge`** — booleans only, confined to the five irreducible,
+  reference-grounded residuals: accuracy **unsourced**, task_success
+  **adequacy**, relevance **abstention**, admissibility **decidability**, and
+  source_quality **disinterest**. `tests/test_determinism_ledger.py` locks this
+  set so no new judge creeps onto the scoring path. Everything else is now fixed:
+  on-ask = NLI+lexical (DIVER-QA), admissibility = double-NLI, disinterest = a T1
+  COI rule.
+- **`ExplanationJudge`** — runs *after* all scores are final, read-only over the
+  `DimensionResult`s + `AtomRecord`s, returns the user-facing summary. It has no
+  `verdict`, writes no atom, and no `formula_id` references it (test-enforced), so
+  the explanation layer sits strictly downstream of scoring.
+
 ## Design-doc section → folder map
 
 This table is verified against the actual tree by

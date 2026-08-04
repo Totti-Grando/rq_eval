@@ -8,8 +8,7 @@
 
 pydantic==2.13.4
 PyYAML==6.0.3
-numpy==2.5.1
-scipy==1.18.0
+# (numpy/scipy intentionally omitted — all statistics are stdlib `math`)
 
 # --- dev / test toolchain ---
 pytest==9.1.1
