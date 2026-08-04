@@ -89,6 +89,32 @@ class RelevanceCappedMeanFormula(Formula):
         return base
 
 
+class RelevanceTreeCappedMeanFormula(Formula):
+    """§3 relevance: depth-graded mean over the support tree, off-ask capped.
+
+    Reads three atom roles so it replays purely from the logged atoms:
+    * ``abstain_relevant`` (verdict True) -> score 1.0 (proper decline);
+    * ``claim_relevance`` atoms -> ``base = mean(weight)``, where each claim's
+      ``weight`` is its code-computed relevance grade (anchor/background/stranded
+      = 1.0, in-tree depth d = ``depth_decay ** d``, off-topic orphan = 0.0);
+    * ``on_ask_answer`` atom -> if its verdict is False, cap: ``min(base, w)``
+      where the cap value travels as that atom's ``weight``.
+    """
+
+    formula_id = "relevance_tree_capped_mean"
+
+    def compute(self, atoms: list[AtomRecord]) -> float:
+        """Compute the depth-graded, capped, abstain-aware mean from atoms alone."""
+        if any(a.role == "abstain_relevant" and a.verdict for a in atoms):
+            return 1.0
+        graded = [a for a in atoms if a.role == "claim_relevance"]
+        base = (sum(a.weight for a in graded) / len(graded)) if graded else 0.0
+        on_ask = [a for a in atoms if a.role == "on_ask_answer"]
+        if on_ask and not on_ask[0].verdict:
+            return min(base, on_ask[0].weight)
+        return base
+
+
 class AchievedRatioFormula(Formula):
     """§4 task_success: ``|achieved| / |required outcomes|``, impossible-aware.
 
@@ -150,6 +176,7 @@ def default_registry() -> FormulaRegistry:
     registry.register(WeightedMeanFormula())
     registry.register(ConjunctionWeightedMeanFormula())
     registry.register(RelevanceCappedMeanFormula())
+    registry.register(RelevanceTreeCappedMeanFormula())
     registry.register(AchievedRatioFormula())
     registry.register(TaskSuccessWeightedFormula())
     registry.register(UnsupportedRateFormula())

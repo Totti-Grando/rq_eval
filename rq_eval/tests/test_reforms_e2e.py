@@ -81,8 +81,8 @@ def _responsive(tmp_path: Path, label: str) -> bool:
         id="c1", text="Barcelona won the match", source_sentence="x", verifiable=True,
         decontextualized=True, extractor_version="claim-extractor-v1",
     )
-    atoms = cr.compute("Who won the match", [claim], export)
-    return atoms[0].verdict
+    signals = cr.compute("Who won the match", [claim], export)
+    return signals[0].responsive.verdict
 
 
 def test_nli_label_drives_responsive(tmp_path: Path) -> None:

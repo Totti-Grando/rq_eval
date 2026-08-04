@@ -1,8 +1,19 @@
-"""§3 relevance — on-topic + responsiveness (build first; §1 imports it).
+"""§3 relevance — anchor-and-support tree + orphan resolution (build first; §1 imports it).
 
-Owns the responsiveness signal. Answer-level relevance (Method A diagnostic /
-Method B gate) + per-claim responsive atoms, combined as a mean with an off-ask
-cap; a proper decline to an unanswerable question scores relevant (abstention).
+Relevance is fit to the *question*, evaluated as a support tree over the whole
+answer (argument-mining structure), not a blunt per-claim filter:
+
+1. **anchors** — claims addressing the question head-on (on-ask seed, expanded by
+   graph centrality, conformal-bounded recall);
+2. **edges** — entailment-confirmed premise→conclusion support links;
+3. **tree** — iterative reachability from anchors, depth = relevance grade,
+   depth-decayed weight, bounded by ``max_hops``;
+4. **orphans** — claims with no path to an anchor are split into off-topic
+   (penalized), stranded/veracity (kept relevant, contradictions routed), and
+   independent-background (kept relevant).
+
+The per-claim ``responsive`` atom (on_topic ∧ on_ask) is still exported for
+accuracy. A proper decline to an unanswerable question scores relevant.
 """
 
 from __future__ import annotations
@@ -13,9 +24,13 @@ from typing import TYPE_CHECKING
 from rq_eval.audit.atom_logger import AtomLogger
 from rq_eval.contracts import AtomRecord, Claim, DimensionResult, EvalInput
 from rq_eval.dimensions.base import Dimension
-from rq_eval.dimensions.relevance.claim_responsiveness import ClaimResponsiveness
+from rq_eval.dimensions.relevance.anchors import AnchorSelector
+from rq_eval.dimensions.relevance.claim_responsiveness import ClaimResponsiveness, ClaimSignals
+from rq_eval.dimensions.relevance.edges import EdgeBuilder
 from rq_eval.dimensions.relevance.method_a import MethodAReverseQuestions
 from rq_eval.dimensions.relevance.method_b import MethodBGuardrail
+from rq_eval.dimensions.relevance.orphans import OFF_TOPIC, STRANDED_CONTRADICTION, OrphanResolver
+from rq_eval.dimensions.relevance.tree import SupportTree
 from rq_eval.dimensions.responsiveness import ResponsivenessExport
 from rq_eval.graders.grounding_grader import GroundingGrader
 from rq_eval.graders.judge_grader import JudgeGrader
@@ -23,6 +38,7 @@ from rq_eval.graders.relevance_grader import RelevanceGrader
 from rq_eval.graders.t1 import T1Tools
 from rq_eval.providers.model_stamp import ModelStamp
 from rq_eval.scoring.bands import BandMapper
+from rq_eval.scoring.conformal import ConformalCalibrator
 from rq_eval.scoring.formulas import default_registry
 from rq_eval.scoring.wilson import WilsonInterval
 
@@ -32,10 +48,12 @@ if TYPE_CHECKING:
 
 _DECLINE = "[[overlap:0.4]] cannot answer decline refuse unable insufficient information"
 _UNANSWERABLE = "[[deny]] Is this question impossible to answer from any available source?"
+_FORMULA = "relevance_tree_capped_mean"
+_CODE = ("code", "rq_eval")
 
 
 class RelevanceDimension(Dimension):
-    """§3 — scores fit to the question and exports per-claim responsiveness."""
+    """§3 — anchor-tree relevance; exports per-claim responsiveness."""
 
     name = "relevance"
 
@@ -47,7 +65,7 @@ class RelevanceDimension(Dimension):
         claims: list[Claim],
         export: ResponsivenessExport,
     ) -> None:
-        """Assemble graders + methods from injected providers/config."""
+        """Assemble graders, the graph pipeline, and methods from providers/config."""
         self._cfg = cfg
         self._logger = logger
         self._claims = claims
@@ -58,13 +76,13 @@ class RelevanceDimension(Dimension):
         seed = cfg.seeds.judge
         self._seed = seed
         self._t1 = T1Tools()
+        self._grounding = providers.grounding
         self._lex_min = cfg.relevance.lexical_min_overlap
         self._grounding_stamp = stamp.grounding()
         self._on_topic = RelevanceGrader(
             providers.relevance, cfg.thresholds.relevance_tau, logger, stamp.relevance(),
             "relevance.on_topic", seed,
         )
-        # on-ask is now fixed NLI + lexical (DIVER-QA) — no judge on the on-ask path
         self._on_ask_nli = GroundingGrader(
             providers.grounding, logger, stamp.grounding(), "relevance.on_ask_nli", seed
         )
@@ -78,6 +96,14 @@ class RelevanceDimension(Dimension):
             self._on_topic, self._on_ask_nli, self._t1, logger, stamp.relevance(), seed,
             self._lex_min,
         )
+        # anchor-and-support tree pipeline (§3)
+        self._edges = EdgeBuilder(providers.grounding, self._t1, cfg.relevance.edge_tau)
+        self._anchors = AnchorSelector(
+            ConformalCalibrator(cfg.relevance.anchor_alpha, cfg.conformal.min_calibration_n),
+            cfg.relevance.anchor_centrality_min,
+        )
+        self._tree = SupportTree(cfg.relevance.max_hops, cfg.relevance.depth_decay)
+        self._orphans = OrphanResolver(providers.grounding, providers.consistency)
         self._method_a = MethodAReverseQuestions(
             providers.generator, providers.embedding, cfg.relevance.reverse_questions_n,
             cfg.seeds.reverse_questions,
@@ -88,32 +114,92 @@ class RelevanceDimension(Dimension):
         self._abstain_stamp = stamp.judge()
 
     def evaluate(self, eval_input: EvalInput) -> DimensionResult:
-        """Compute the relevance score + band + CI; export responsiveness."""
+        """Compute the tree-graded relevance score + band + CI; export responsiveness."""
         q, a = eval_input.question, eval_input.answer
         inputs_hash = self._hash(q, a)
 
         abstain = self._maybe_abstain(q, a)
         if abstain is not None:
-            score = self._registry.compute("relevance_capped_mean", [abstain])
+            score = self._registry.compute(_FORMULA, [abstain])
             return DimensionResult(
                 dimension=self.name, score=score, band=self._bands.band(score),
                 ci_low=0.0, ci_high=1.0, n=len(self._claims), inputs_hash=inputs_hash,
-                atom_ids=[abstain.id], formula_id="relevance_capped_mean", abstained=True,
+                atom_ids=[abstain.id], formula_id=_FORMULA, abstained=True,
             )
 
         extra = self._answer_level_scores(q, a)
         answer_ask = self._answer_on_ask(q, a)
-        responsive = self._responsiveness.compute(q, self._claims, self._export)
-        atoms: list[AtomRecord] = [answer_ask, *responsive]
-        score = self._registry.compute("relevance_capped_mean", atoms)
+        signals = self._responsiveness.compute(q, self._claims, self._export)
+        graded = self._grade_claims(q, signals, extra)
 
-        num_responsive = sum(1 for x in responsive if x.verdict)
-        low, high = WilsonInterval().interval(num_responsive, len(self._claims))
+        responsive_atoms = [s.responsive for s in signals]
+        atoms: list[AtomRecord] = [answer_ask, *responsive_atoms, *graded]
+        score = self._registry.compute(_FORMULA, [answer_ask, *graded])
+
+        num_relevant = sum(1 for g in graded if g.verdict)
+        low, high = WilsonInterval().interval(num_relevant, len(self._claims))
         return DimensionResult(
             dimension=self.name, score=score, band=self._bands.band(score),
             ci_low=low, ci_high=high, n=len(self._claims), inputs_hash=inputs_hash,
-            atom_ids=[x.id for x in atoms], formula_id="relevance_capped_mean",
-            abstained=False, extra=extra,
+            atom_ids=[x.id for x in atoms], formula_id=_FORMULA, abstained=False, extra=extra,
+        )
+
+    def _grade_claims(
+        self, question: str, signals: list[ClaimSignals], extra: dict[str, float]
+    ) -> list[AtomRecord]:
+        """Build the tree, resolve orphans, and log one graded ``claim_relevance`` atom/claim."""
+        by_id = {s.claim.id: s for s in signals}
+        edges = self._edges.build(self._claims)
+        seed_ids = {s.claim.id for s in signals if s.on_ask}
+        # anchor confidence = the on-ask lexical coverage of the question's terms
+        confidences = {
+            s.claim.id: self._t1.key_term_overlap(question, s.claim.text) for s in signals
+        }
+        anchor_result = self._anchors.select(
+            [s.claim.id for s in signals], seed_ids, edges, confidences
+        )
+        extra["anchor_band_low"] = anchor_result.band_low
+        extra["anchor_count"] = float(len(anchor_result.anchor_ids))
+        depth = self._tree.build(anchor_result.anchor_ids, edges)
+        anchors = [by_id[i].claim for i in anchor_result.anchor_ids if i in by_id]
+
+        graded: list[AtomRecord] = []
+        for s in signals:
+            graded.append(self._grade_one(s, depth, anchors))
+        return graded
+
+    def _grade_one(
+        self, s: ClaimSignals, depth: dict[str, int], anchors: list[Claim]
+    ) -> AtomRecord:
+        """Grade a single claim by its tree depth, or by orphan classification."""
+        if s.claim.id in depth:
+            weight = self._tree.relevance_weight(depth[s.claim.id])
+            return self._log_relevance(
+                s.claim.id, verdict=True, weight=weight,
+                evidence=f"in_tree depth={depth[s.claim.id]}",
+            )
+        verdict = self._orphans.classify(s.claim, s.on_topic, anchors)
+        if verdict.kind == STRANDED_CONTRADICTION:
+            self._logger.record(
+                subject=s.claim.id, role="routed_contradiction",
+                question="stranded contradiction routed to Reasoning", tier="T1",
+                verdict=True, evidence=verdict.route_reason or "",
+                grader_id="relevance.routed_contradiction", model=_CODE[0], model_version=_CODE[1],
+            )
+        weight = 0.0 if verdict.kind == OFF_TOPIC else 1.0
+        return self._log_relevance(
+            s.claim.id, verdict=verdict.relevant, weight=weight, evidence=f"orphan={verdict.kind}"
+        )
+
+    def _log_relevance(
+        self, claim_id: str, *, verdict: bool, weight: float, evidence: str
+    ) -> AtomRecord:
+        """Log a code-graded ``claim_relevance`` atom (the score reads its weight)."""
+        return self._logger.record(
+            subject=claim_id, role="claim_relevance", question="relevance grade (tree depth)",
+            tier="T2", verdict=verdict, weight=weight, evidence=evidence,
+            grader_id="relevance.claim_relevance", model=self._grounding_stamp[0],
+            model_version=self._grounding_stamp[1], seed=self._seed,
         )
 
     def _maybe_abstain(self, question: str, answer: str) -> AtomRecord | None:

@@ -11,6 +11,8 @@ Both signals are fixed (no judge, per the DIVER-QA reform):
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from rq_eval.audit.atom_logger import AtomLogger
 from rq_eval.contracts import AtomRecord, Claim
 from rq_eval.dimensions.responsiveness import ResponsivenessExport
@@ -19,6 +21,21 @@ from rq_eval.graders.relevance_grader import RelevanceGrader
 from rq_eval.graders.t1 import T1Tools
 
 _CODE = ("code", "rq_eval")
+
+
+@dataclass(frozen=True, slots=True)
+class ClaimSignals:
+    """Per-claim relevance signals used to seed anchors + classify orphans.
+
+    ``on_ask`` seeds the anchor set (a direct question hit); ``on_topic`` splits
+    off-topic orphans from background; ``responsive`` (= on_topic ∧ on_ask) is
+    the atom accuracy imports.
+    """
+
+    claim: Claim
+    on_topic: bool
+    on_ask: bool
+    responsive: AtomRecord
 
 
 class ClaimResponsiveness:
@@ -45,10 +62,10 @@ class ClaimResponsiveness:
 
     def compute(
         self, question: str, claims: list[Claim], export: ResponsivenessExport
-    ) -> list[AtomRecord]:
-        """Return one responsive atom per claim; publish each to ``export``."""
+    ) -> list[ClaimSignals]:
+        """Return per-claim signals; log + publish the responsive atom to ``export``."""
         ask = self._t1.ask_hypothesis(question)
-        atoms: list[AtomRecord] = []
+        signals: list[ClaimSignals] = []
         for claim in claims:
             on_topic = self._on_topic.check(
                 subject=claim.id, role="on_topic", query=question, response=claim.text
@@ -72,5 +89,9 @@ class ClaimResponsiveness:
                 model_version=self._version, seed=self._seed,
             )
             export.set(claim.id, atom)
-            atoms.append(atom)
-        return atoms
+            signals.append(
+                ClaimSignals(
+                    claim=claim, on_topic=on_topic.verdict, on_ask=on_ask, responsive=atom
+                )
+            )
+        return signals

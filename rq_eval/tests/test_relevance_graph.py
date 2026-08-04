@@ -6,8 +6,16 @@ from rq_eval.config import load_config
 from rq_eval.contracts import Claim
 from rq_eval.dimensions.relevance.anchors import AnchorSelector
 from rq_eval.dimensions.relevance.edges import Edge, EdgeBuilder
+from rq_eval.dimensions.relevance.orphans import (
+    BACKGROUND,
+    OFF_TOPIC,
+    STRANDED_CONTRADICTION,
+    OrphanResolver,
+)
+from rq_eval.dimensions.relevance.tree import SupportTree
 from rq_eval.graders.t1 import T1Tools
-from rq_eval.providers.consistency import StubConsistencyProvider
+from rq_eval.providers.base import EntailmentResult
+from rq_eval.providers.consistency import RouteReceipt, StubConsistencyProvider
 from rq_eval.providers.factory import ProviderFactory
 
 
@@ -70,6 +78,66 @@ def test_anchor_recall_carries_conformal_band() -> None:
     assert 0.0 < result.band_low < 1.0
     assert result.band_low == 1.0 - cfg.relevance.anchor_alpha
     assert result.abstained  # too few anchors to certify recall -> honest abstain
+
+
+def test_premise_chain_attaches_via_two_hops() -> None:
+    """A→B→anchor: the distant premise attaches at depth 2 (chain reachability)."""
+    tree = SupportTree(max_hops=3, depth_decay=0.5)
+    edges = [Edge("B", "anchor", 0.9, False), Edge("A", "B", 0.9, False)]
+    depth = tree.build({"anchor"}, edges)
+    assert depth == {"anchor": 0, "B": 1, "A": 2}
+    assert tree.relevance_weight(depth["A"]) == 0.25  # 0.5 ** 2
+
+
+def test_max_hops_bounds_the_tree() -> None:
+    """A long weak chain cannot launder an orphan past ``max_hops``."""
+    tree = SupportTree(max_hops=1, depth_decay=0.5)
+    edges = [Edge("B", "anchor", 0.9, False), Edge("A", "B", 0.9, False)]
+    depth = tree.build({"anchor"}, edges)
+    assert "B" in depth and "A" not in depth  # A is 2 hops out, dropped
+
+
+class _Grounding:
+    """Grounding stub returning a fixed label (to control orphan→anchor NLI)."""
+
+    def __init__(self, label: str) -> None:
+        self._label = label
+
+    def entails(self, premise: str, hypothesis: str) -> EntailmentResult:
+        return EntailmentResult(label=self._label, raw_score=1.0)
+
+
+class _SpyConsistency(StubConsistencyProvider):
+    """Records routed contradictions to prove relevance routes them out."""
+
+    def __init__(self) -> None:
+        self.routed: list[tuple[str, str]] = []
+
+    def route_contradiction(self, claim: str, anchor: str) -> RouteReceipt:
+        self.routed.append((claim, anchor))
+        return super().route_contradiction(claim, anchor)
+
+
+def test_flood_zone_orphan_is_stranded_contradiction_kept_and_routed() -> None:
+    """A true, on-topic claim that contradicts an anchor is kept relevant + routed."""
+    spy = _SpyConsistency()
+    resolver = OrphanResolver(_Grounding("C"), spy)  # type: ignore[arg-type]
+    orphan = _claim("c9", "The primary plant sits in a flood zone")
+    anchor = _claim("a1", "The acquisition is attractive")
+    verdict = resolver.classify(orphan, on_topic=True, anchors=[anchor])
+    assert verdict.kind == STRANDED_CONTRADICTION
+    assert verdict.relevant is True  # NOT dropped as off-topic
+    assert spy.routed == [(orphan.text, anchor.text)]
+
+
+def test_off_topic_orphan_is_the_only_thing_scored_down() -> None:
+    """An off-topic orphan is penalized; an on-topic background orphan is kept."""
+    resolver = OrphanResolver(_Grounding("N"), StubConsistencyProvider())  # type: ignore[arg-type]
+    anchor = _claim("a1", "GDP fell three percent")
+    off = resolver.classify(_claim("o1", "Bananas grow in the tropics"), False, [anchor])
+    bg = resolver.classify(_claim("o2", "The report was published on Tuesday"), True, [anchor])
+    assert off.kind == OFF_TOPIC and off.relevant is False
+    assert bg.kind == BACKGROUND and bg.relevant is True
 
 
 def test_consistency_stub_defaults() -> None:
