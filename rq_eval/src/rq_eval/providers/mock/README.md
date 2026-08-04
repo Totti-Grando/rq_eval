@@ -7,7 +7,8 @@ enough to exercise every downstream code path and to make tests deterministic.
 
 **Classes:**
 - `DeterministicText` — shared seeded token-overlap + hashed-embedding helper (not a provider).
-- `MockJudgeProvider` — [T3] tag-dispatched boolean verdicts (`[[affirm]]`/`[[deny]]`/`[[overlap[:tau]]]`/seeded).
+- `MockScoringJudge` — [T3] tag-dispatched boolean verdicts (`[[affirm]]`/`[[deny]]`/`[[overlap[:tau]]]`/`[[verifiable]]`/seeded); optional `reference` folded into context.
+- `MockExplanationJudge` — [read-only] templated run summary (no verdict, no atom, never read by a formula).
 - `MockGeneratorProvider` — [T3-gen] tag-dispatched text (`[[echo]]`/`[[sentences]]`/`[[repeat]]`).
 - `MockEmbeddingProvider` — [T2] hashed bag-of-tokens vectors.
 - `MockGroundingProvider` — [T2] three-way entailment: coverage ≥ entail_tau → E, negation-mismatch → C, else N.

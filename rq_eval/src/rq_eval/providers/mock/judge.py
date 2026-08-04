@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import re
 
-from rq_eval.providers.base import JudgeProvider, JudgeVerdict
+from rq_eval.providers.base import JudgeVerdict, ScoringJudge
 from rq_eval.providers.mock.deterministic_text import DeterministicText
 
 _TAG = re.compile(r"^\s*\[\[([^\]]+)\]\]\s*(.*)$", re.DOTALL)
@@ -32,15 +32,21 @@ _HEDGE = frozenset(
 )
 
 
-class MockJudgeProvider(JudgeProvider):
-    """Deterministic, tag-dispatched boolean judge for offline runs."""
+class MockScoringJudge(ScoringJudge):
+    """Deterministic, tag-dispatched boolean scoring-judge for offline runs."""
 
     def __init__(self, seed: int) -> None:
         """Seed the deterministic text model."""
         self._dt = DeterministicText(seed)
 
-    def binary(self, question: str, context: str) -> JudgeVerdict:
-        """Return a deterministic verdict per the optional ``[[tag]]`` rule."""
+    def binary(self, question: str, context: str, reference: str | None = None) -> JudgeVerdict:
+        """Return a deterministic verdict per the optional ``[[tag]]`` rule.
+
+        ``reference`` (when provided) is appended to the context so the seeded
+        default verdict still depends on it — deterministic and reference-aware.
+        """
+        if reference:
+            context = f"{context}\n[reference] {reference}"
         tag, body = self._parse(question)
         if tag == "affirm":
             return JudgeVerdict(True, "mock:affirm")

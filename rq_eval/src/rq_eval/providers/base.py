@@ -7,8 +7,9 @@ runs, and tests offline. Construction is only ever via
 
 Booleans-only discipline is enforced structurally here:
 
-* :class:`JudgeProvider` exposes exactly one method — ``binary`` — returning a
-  ``verdict: bool``. There is no numeric scoring endpoint on the judge.
+* :class:`ScoringJudge` exposes exactly one method — ``binary`` — returning a
+  ``verdict: bool``. There is no numeric scoring endpoint on the judge. The
+  read-only :class:`ExplanationJudge` is separate and never feeds a score.
 * :class:`GeneratorProvider` is a *separate* interface for the design's
   ``[T3-gen]`` steps (claim extraction, decontextualization, unit drafting,
   objective/outcome inference). It returns **text**, never a number — generated
@@ -26,7 +27,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
-    from rq_eval.contracts import ContextChunk
+    from rq_eval.contracts import AtomRecord, ContextChunk, DimensionResult
 
 Vector = list[float]
 EntailmentLabel = Literal["E", "N", "C"]  # Entailment / Neutral / Contradiction
@@ -90,12 +91,34 @@ class AttributionResult:
     label: str
 
 
-class JudgeProvider(ABC):
-    """[T3] The judge — the ONLY method is a boolean verdict (no scoring)."""
+class ScoringJudge(ABC):
+    """[T3] Score-affecting judge — the ONLY method is a boolean verdict.
+
+    Confined (design §0.5) to the irreducible residuals: accuracy-unsourced,
+    task_success-adequacy, relevance-abstention, admissibility-decidability, and
+    source_quality-disinterest. Booleans-only (no numeric output); an optional
+    ``reference`` is passed where one exists so the verdict isn't a no-reference
+    guess (judges over-credit without one).
+    """
 
     @abstractmethod
-    def binary(self, question: str, context: str) -> JudgeVerdict:
-        """Answer a yes/no ``question`` about ``context``. Inputs→ bool+reason."""
+    def binary(self, question: str, context: str, reference: str | None = None) -> JudgeVerdict:
+        """Answer a yes/no ``question`` about ``context`` (+ optional reference)."""
+
+
+class ExplanationJudge(ABC):
+    """[read-only] User-facing run summary — never an input to any score.
+
+    Receives finished ``DimensionResult``s + ``AtomRecord``s and returns prose.
+    Structurally quarantined: no ``verdict``, writes no ``AtomRecord``, and no
+    ``formula_id`` may reference it (enforced by tests). "Explain, never override."
+    """
+
+    @abstractmethod
+    def summarize(
+        self, results: dict[str, DimensionResult], atoms: list[AtomRecord]
+    ) -> str:
+        """Return a human-readable summary of a finished run (no scoring)."""
 
 
 class GeneratorProvider(ABC):

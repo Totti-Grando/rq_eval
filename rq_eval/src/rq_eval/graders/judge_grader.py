@@ -1,24 +1,24 @@
-"""T3 judge adapter — records a boolean verdict as an atom (build order B5)."""
+"""T3 judge adapter — records a boolean ScoringJudge verdict as an atom (B5/R1)."""
 
 from __future__ import annotations
 
 from rq_eval.audit.atom_logger import AtomLogger
 from rq_eval.contracts import AtomRecord, Tier
-from rq_eval.providers.base import JudgeProvider
+from rq_eval.providers.base import ScoringJudge
 
 
 class JudgeGrader:
-    """[T3] Wraps a judge: ask a yes/no question, log the atom, return the bool."""
+    """[T3] Wraps a ScoringJudge: ask a yes/no question, log the atom, return bool."""
 
     def __init__(
         self,
-        judge: JudgeProvider,
+        judge: ScoringJudge,
         logger: AtomLogger,
         stamp: tuple[str, str],
         grader_id: str,
         seed: int,
     ) -> None:
-        """Inject judge, atom logger, model stamp, grader id, and seed."""
+        """Inject scoring judge, atom logger, model stamp, grader id, and seed."""
         self._judge = judge
         self._logger = logger
         self._model, self._version = stamp
@@ -32,11 +32,12 @@ class JudgeGrader:
         role: str,
         question: str,
         context: str,
+        reference: str | None = None,
         weight: float = 1.0,
         tier: Tier = "T3",
     ) -> AtomRecord:
-        """Call the judge, record an atom, and return it (``.verdict`` is the bool)."""
-        verdict = self._judge.binary(question, context)
+        """Call the judge (reference-grounded when given), log + return the atom."""
+        verdict = self._judge.binary(question, context, reference)
         return self._logger.record(
             subject=subject,
             role=role,

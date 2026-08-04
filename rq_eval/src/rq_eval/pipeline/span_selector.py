@@ -11,7 +11,7 @@ import hashlib
 
 from rq_eval.audit.atom_logger import AtomLogger
 from rq_eval.pipeline.prompts import PromptLibrary
-from rq_eval.providers.base import JudgeProvider
+from rq_eval.providers.base import ScoringJudge
 
 
 class VerifiableSpanSelector:
@@ -20,7 +20,7 @@ class VerifiableSpanSelector:
     grader_id = "pipeline.verifiable"
 
     def __init__(
-        self, judge: JudgeProvider, prompts: PromptLibrary, stamp: tuple[str, str], seed: int
+        self, judge: ScoringJudge, prompts: PromptLibrary, stamp: tuple[str, str], seed: int
     ) -> None:
         """Inject judge, prompts, the model stamp, and the judge seed."""
         self._judge = judge

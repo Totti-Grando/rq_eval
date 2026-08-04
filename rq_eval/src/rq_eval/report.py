@@ -38,6 +38,9 @@ class ReportRenderer:
                 lines.append(f"        {extra}")
         lines.append("  " + "-" * 58)
         lines.append("  atoms by tier: " + self._tier_counts(result))
+        if result.summary:  # read-only ExplanationJudge prose (not a score input)
+            indented = "\n".join(f"    {ln}" for ln in result.summary.splitlines())
+            lines.append("  explanation (read-only):\n" + indented)
         return "\n".join(lines)
 
     @staticmethod

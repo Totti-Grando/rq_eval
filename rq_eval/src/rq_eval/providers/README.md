@@ -12,7 +12,8 @@ construction is only via `ProviderFactory`, which reads config. This is what
 makes the whole program build, run, and test offline (`providers.mode: mock`).
 
 **Classes:**
-- `JudgeProvider` — [T3] boolean judge; the ONLY method is `binary(...) -> {verdict: bool, reason}`. No numeric endpoint.
+- `ScoringJudge` — [T3] score-affecting boolean judge; the ONLY method is `binary(question, context, reference?) -> {verdict, reason}`. No numeric endpoint; confined to the five named residuals (§0.5).
+- `ExplanationJudge` — [read-only] `summarize(results, atoms) -> str`; the user-facing run summary. No verdict, writes no atom, never read by a formula.
 - `GeneratorProvider` — [T3-gen] pinned text generation (claims, units, objectives); returns text, never numbers.
 - `EmbeddingProvider` — [T2] text → fixed-dim vectors.
 - `GroundingProvider` — [T2] three-way entailment `entails(premise, hypothesis) -> {label∈E|N|C, raw_score, supported}` (design §1/§6; one verifier, three premises).

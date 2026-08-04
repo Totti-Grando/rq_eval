@@ -50,6 +50,7 @@ class EvaluationResult:
     store: AtomStore
     conformal: ConformalResult
     atoms: list[AtomRecord] = field(default_factory=list)
+    summary: str = ""  # read-only ExplanationJudge prose; never an input to any score
 
 
 class Evaluator:
@@ -105,9 +106,12 @@ class Evaluator:
                 groundedness, hallucination, source_quality, source_attribution,
             )
         }
+        atoms = self._store.all()
+        # read-only summary AFTER all scores are final; never feeds a formula
+        summary = p.explanation.summarize(results, atoms)
         return EvaluationResult(
             results=results, claims=claims, stability=pres.stability, store=self._store,
-            conformal=conformal, atoms=self._store.all(),
+            conformal=conformal, atoms=atoms, summary=summary,
         )
 
     def _calibrate_conformal(self) -> ConformalResult:

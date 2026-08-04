@@ -10,7 +10,8 @@ import fires only when a method is actually called.
 
 **Classes:**
 - `BedrockSession` — lazy boto3 client factory (region/profile from config).
-- `BedrockJudgeProvider` — [T3] Converse API, strict YES/NO → boolean.
+- `BedrockScoringJudge` — [T3] Converse API, strict YES/NO → boolean (reference-grounded when given).
+- `BedrockExplanationJudge` — [read-only] Converse API run summary (no verdict, no atom).
 - `BedrockGeneratorProvider` — [T3-gen] Converse API, temperature 0, seed-stamped.
 - `TitanEmbeddingProvider` — [T2] Titan InvokeModel embeddings.
 - `GuardrailGroundingProvider` — [T2] Guardrails contextual-grounding GROUNDING score.

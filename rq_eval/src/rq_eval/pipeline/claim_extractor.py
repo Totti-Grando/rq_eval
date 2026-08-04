@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from rq_eval.audit.atom_logger import AtomLogger
 from rq_eval.pipeline.prompts import PromptLibrary
-from rq_eval.providers.base import GeneratorProvider, JudgeProvider
+from rq_eval.providers.base import GeneratorProvider, ScoringJudge
 
 
 class ClaimExtractor:
@@ -18,7 +18,7 @@ class ClaimExtractor:
 
     def __init__(
         self,
-        judge: JudgeProvider,
+        judge: ScoringJudge,
         generator: GeneratorProvider,
         prompts: PromptLibrary,
         judge_stamp: tuple[str, str],

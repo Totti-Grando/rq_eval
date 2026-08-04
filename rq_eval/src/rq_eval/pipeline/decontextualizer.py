@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from rq_eval.audit.atom_logger import AtomLogger
 from rq_eval.pipeline.prompts import PromptLibrary
-from rq_eval.providers.base import JudgeProvider, NlpProvider
+from rq_eval.providers.base import NlpProvider, ScoringJudge
 
 
 class Decontextualizer:
@@ -20,7 +20,7 @@ class Decontextualizer:
     def __init__(
         self,
         nlp: NlpProvider,
-        judge: JudgeProvider,
+        judge: ScoringJudge,
         prompts: PromptLibrary,
         stamp: tuple[str, str],
         seed: int,

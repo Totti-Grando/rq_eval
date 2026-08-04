@@ -14,12 +14,13 @@ from typing import TYPE_CHECKING
 
 from rq_eval.providers.base import (
     EmbeddingProvider,
+    ExplanationJudge,
     GeneratorProvider,
     GroundingProvider,
-    JudgeProvider,
     NlpProvider,
     RelevanceProvider,
     ResolverProvider,
+    ScoringJudge,
 )
 
 if TYPE_CHECKING:
@@ -33,7 +34,8 @@ CheckFn = Callable[[str, Callable[[], object]], bool]
 class Providers:
     """Typed bundle of every provider a dimension may need (injected via DI)."""
 
-    judge: JudgeProvider
+    judge: ScoringJudge
+    explanation: ExplanationJudge
     generator: GeneratorProvider
     embedding: EmbeddingProvider
     grounding: GroundingProvider
@@ -58,16 +60,18 @@ class ProviderFactory:
     # -- mock -------------------------------------------------------------- #
     def _build_mock(self) -> Providers:
         from rq_eval.providers.mock.embedding import MockEmbeddingProvider
+        from rq_eval.providers.mock.explanation import MockExplanationJudge
         from rq_eval.providers.mock.generator import MockGeneratorProvider
         from rq_eval.providers.mock.grounding import MockGroundingProvider
-        from rq_eval.providers.mock.judge import MockJudgeProvider
+        from rq_eval.providers.mock.judge import MockScoringJudge
         from rq_eval.providers.mock.nlp import MockNlpProvider
         from rq_eval.providers.mock.relevance import MockRelevanceProvider
 
         s = self._cfg.seeds
         t = self._cfg.thresholds
         return Providers(
-            judge=MockJudgeProvider(seed=s.judge),
+            judge=MockScoringJudge(seed=s.judge),
+            explanation=MockExplanationJudge(),
             generator=MockGeneratorProvider(seed=s.judge),
             embedding=MockEmbeddingProvider(seed=s.embedding),
             grounding=MockGroundingProvider(
@@ -82,14 +86,16 @@ class ProviderFactory:
     def _build_live(self) -> Providers:
         from rq_eval.providers.live.bedrock_session import BedrockSession
         from rq_eval.providers.live.embedding import TitanEmbeddingProvider
+        from rq_eval.providers.live.explanation import BedrockExplanationJudge
         from rq_eval.providers.live.generator import BedrockGeneratorProvider
-        from rq_eval.providers.live.judge import BedrockJudgeProvider
+        from rq_eval.providers.live.judge import BedrockScoringJudge
         from rq_eval.providers.live.nlp import SpacyNlpProvider
         from rq_eval.providers.live.relevance_guardrail import GuardrailRelevanceProvider
 
         session = BedrockSession(self._cfg)
         return Providers(
-            judge=BedrockJudgeProvider(self._cfg, session),
+            judge=BedrockScoringJudge(self._cfg, session),
+            explanation=BedrockExplanationJudge(self._cfg, session),
             generator=BedrockGeneratorProvider(self._cfg, session),
             embedding=TitanEmbeddingProvider(self._cfg, session),
             grounding=self._build_grounding(session),
@@ -133,6 +139,7 @@ class ProviderFactory:
         p = self.build()
         return [
             check("judge", lambda: p.judge.binary("[[affirm]] ok?", "context")),
+            check("explanation", lambda: p.explanation.summarize({}, [])),
             check("generator", lambda: p.generator.generate("[[echo]] hello", seed=1)),
             check("embedding", lambda: p.embedding.embed(["alpha beta", "gamma"])),
             check("grounding", lambda: p.grounding.entails("the sky is blue", "sky is blue")),

@@ -31,13 +31,21 @@ def test_factory_builds_full_bundle(providers: Providers) -> None:
         assert p is not None
 
 
-def test_judge_is_booleans_only(providers: Providers) -> None:
+def test_scoring_judge_is_booleans_only(providers: Providers) -> None:
     v = providers.judge.binary("[[affirm]] anything?", "ctx")
     assert isinstance(v, JudgeVerdict)
     assert isinstance(v.verdict, bool)
-    # the interface exposes exactly one public method: binary
+    # the ScoringJudge interface exposes exactly one public method: binary
     methods = [m for m in dir(type(providers.judge)) if not m.startswith("_")]
     assert methods == ["binary"]
+
+
+def test_explanation_judge_is_read_only(providers: Providers) -> None:
+    # ExplanationJudge only summarizes; it has no verdict-producing method
+    summary = providers.explanation.summarize({}, [])
+    assert isinstance(summary, str)
+    methods = [m for m in dir(type(providers.explanation)) if not m.startswith("_")]
+    assert methods == ["summarize"]
 
 
 def test_judge_tags_are_deterministic(providers: Providers) -> None:
@@ -113,7 +121,7 @@ def test_live_selection_is_config_only() -> None:
     live = _with(cfg, mode="live", nli="bedrock")
     bundle = ProviderFactory(live).build()
     # constructed lazily; no network/boto3 import until a method is called
-    assert type(bundle.judge).__name__ == "BedrockJudgeProvider"
+    assert type(bundle.judge).__name__ == "BedrockScoringJudge"
     assert type(bundle.embedding).__name__ == "TitanEmbeddingProvider"
     assert _grounding_name(live) == "GuardrailGroundingProvider"
     assert _grounding_name(_with(cfg, mode="live", nli="fairseq")) == "FairseqGroundingProvider"
