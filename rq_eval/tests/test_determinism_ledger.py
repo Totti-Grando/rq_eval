@@ -61,3 +61,27 @@ def test_reformed_paths_emit_no_judge_atoms(tmp_path: Path) -> None:
     assert by_role.get("on_ask_lex") == "T1"
     assert by_role.get("impossible_success") == "T1"
     assert by_role.get("task_type") == "T1"
+
+
+def test_extraction_and_relevance_are_deterministic(tmp_path: Path) -> None:
+    """U1/U3: claim decomposition + relevance scoring emit no judge on their paths.
+
+    The pipeline (extraction) now logs only T1 atoms — the old pipeline.verifiable/
+    disambiguate/decontextualized judge atoms are gone — and the relevance
+    anchor-tree scoring path is fixed NLI + code (on-ask, tree grade, routing).
+    """
+    cfg = load_config()
+    for i, case in enumerate(FixtureSuite().cases()):
+        store = JsonlAtomStore(tmp_path / f"d{i}.jsonl")
+        Evaluator(cfg, store=store, clock=FixedClock()).evaluate(case.to_input())
+        atoms = store.all()
+        # no pipeline.* extraction atom is a judge (T3)
+        pipeline_t3 = [a for a in atoms if a.grader_id.startswith("pipeline.") and a.tier == "T3"]
+        assert not pipeline_t3, f"pipeline judge atom leaked: {[a.role for a in pipeline_t3]}"
+        # the reformed relevance scoring roles are fixed NLI + code, never a judge
+        by_role = {a.role: a.tier for a in atoms}
+        assert by_role.get("verifiable") == "T1"  # was a judge before U1
+        if "claim_relevance" in by_role:
+            assert by_role["claim_relevance"] == "T2"  # depth-graded, no judge (U3)
+        if "routed_contradiction" in by_role:
+            assert by_role["routed_contradiction"] == "T1"

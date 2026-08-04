@@ -63,7 +63,8 @@ the single NLI used by groundedness (premise=context span), source_attribution
 | `mean` | `Σ verdict / n` |
 | `weighted_mean` | `Σ verdict·w / Σ w` |
 | `conjunction_weighted_mean` | group atoms by subject; `correct = AND(verdicts)`; `Σ correct·w / Σ w` (w per subject) |
-| `relevance_capped_mean` | `abstain_relevant→1.0`; else `base=mean(responsive)`; if `on_ask_answer=False` → `min(base, cap)` (cap = that atom's weight) |
+| `relevance_capped_mean` | (legacy) `abstain_relevant→1.0`; else `base=mean(responsive)`; if `on_ask_answer=False` → `min(base, cap)` |
+| `relevance_tree_capped_mean` | `abstain_relevant→1.0`; else `base=mean(claim_relevance.weight)` (code-graded: anchor/bg/stranded=1.0, in-tree depth d=`depth_decay**d`, off-topic=0.0); if `on_ask_answer=False` → `min(base, cap)` |
 | `task_success_weighted` | `impossible→1.0`; else `Σ outcome·w / Σ w` |
 | `achieved_ratio` | `impossible→1.0`; else `mean(outcome verdicts)` |
 | `unsupported_rate` | `1 − Σ verdict / n` |
@@ -79,6 +80,16 @@ the single NLI used by groundedness (premise=context span), source_attribution
 
 ## Part 3 — Response Quality
 
+### §0.2 shared claim extraction — `pipeline/` (deterministic parse-first)
+Runs once, cached, consumed by accuracy/completeness/relevance. **No judge or
+generator on the primary path**: segment `[T1]` → verifiable-vs-opinion lexical
+filter (`T1Tools.is_verifiable`) `[T1]` → decompose into content-unit clauses
+(`NlpProvider.parse_clauses`; abstractive-implied spans flagged, not generated)
+`[T1]` → decontextualize (`resolve_coref` + structural self-contained check)
+`[T1/T2]`. Optional pinned surface-realizer `[T2]` behind `extraction.realizer_enabled`
+(off by default, droppable per the realizer-impact test). Pinned by `extractor_version`;
+stability measured.
+
 ### §1 accuracy  — `Σ correct·w / Σ w`
 Inputs: answer claims + retrieved context + citations. Per claim, four booleans (all **imported**), AND-ed, then weighted-mean.
 
@@ -93,13 +104,15 @@ Inputs: answer claims + retrieved context + citations. Per claim, four booleans 
 | **score** | code | `conjunction_weighted_mean` | `claim_correct = AND(the four)`; `accuracy = Σ correct·w / Σ w`; `w` = importance weight (toggle) |
 | CI / band | code | Wilson / BandMapper | Wilson over (correct claims, #claims) |
 
-### §2 completeness — strict vital recall (two-tier)
-Inputs: question + sources + requirement templates.
+### §2 completeness — strict vital recall (two-tier, mode-based reference)
+Inputs: question + sources. The Tier-1 reference is **mode-selected** and the mode
+is stamped on the result (`assurance_mode`); a human recall-sample miss-rate is reported.
 
 | Step | Tier | Tool | Computation |
 |---|---|---|---|
-| Tier-1 requirements | oracle | `config/requirement_templates.yaml` | question-type → facets (each `vital` flag) |
-| Tier-2 units | T3g | generator (parse → Bedrock) | top-down (from requirement) + bottom-up (source sentences overlapping the requirement) |
+| Tier-1 requirements (mode) | oracle / T3g | `ReferenceModeSelector` | `generated` (default, per-question `[T3-gen]`) · `archetype` (`config/question_archetypes.yaml` shapes) · `templated` (`config/requirement_templates.yaml`); mode → `assurance_mode` |
+| recall error bar | code | `RecallSample` | `recall_miss_rate = |sampled should-contain facts not surfaced| / |sampled|` |
+| Tier-2 units | T3g + T1 | generator + extractive | top-down (from requirement) + bottom-up (source sentences overlapping the requirement) |
 | admissibility gate | T1+T2 | `T1Tools` + coref + double-NLI | atomic (`re` split) ∧ self-contained (coref) ∧ decidable (**double-NLI**: entails(answer,unit) vs entails(answer+sources,unit) agree; disagreement → reference-grounded residual judge) → freeze |
 | dedupe | T2 | embeddings cosine | drop unit if `cos ≥ dedupe_tau` with a kept unit |
 | assign (support) | T2 | entails (answer = premise, unit = hypothesis) | supported ⟺ `label == E` |
@@ -107,18 +120,21 @@ Inputs: question + sources + requirement templates.
 | also reported | code | `two_level_scoring.py` | `requirement_coverage = |reqs with ≥1 supported unit| / |reqs|`; `weighted_recall = Σ recall(r)·w(r)/Σ w(r)`, `w=2` if vital & weighting else 1 |
 | CI / abstain | code | Wilson / min-n | Wilson over (vital supported, vital total); abstain if vital total `< min_n` |
 
-### §3 relevance — capped mean of responsive
-Inputs: question + answer.
+### §3 relevance — anchor-and-support tree + orphan resolution
+Inputs: question + answer claims. Relevance is a support tree over the whole answer,
+not a per-claim filter; the `responsive` atom is still exported to accuracy.
 
 | Step | Tier | Tool | Computation |
 |---|---|---|---|
-| Method A (diagnostic) | T3g+T2 | generator + embeddings | `AR = (1/N) Σ cos(E_question, E_reverseQ_i)` |
-| Method B (gate, default) | T2 | relevance (jaccard → Guardrail) | raw query↔response score |
 | per-claim on-topic | T2 | relevance | `relevance(question, claim) ≥ relevance_tau` |
 | per-claim on-ask | T1+T2 | NLI + lexical (no judge) | `on_ask = entails(claim, ask)==E ∨ key_term_overlap(question, claim) ≥ lexical_min_overlap` (DIVER-QA) |
 | responsive atom (exported) | T2 | code | `on_topic ∧ on_ask` → imported by accuracy |
+| edges | T1+T2 | markers + entails | `A→B ⟺ entails(A,B).raw ≥ edge_tau ∧ label≠C` (marker = candidate prior only) |
+| anchors | T2+code | on-ask seed + centrality | seeds ∪ {in-degree ≥ `anchor_centrality_min`}; recall band via conformal (`anchor_alpha`) |
+| tree | code | reachability | depth from anchor (fixpoint, `max_hops`); grade weight `depth_decay ** depth` |
+| orphans | T1+T2 | on-topic + orphan→anchor NLI | off-topic (penalize) / stranded-veracity (kept, contradiction routed to `ConsistencyProvider`) / background (kept) |
 | abstention | T3 | judge | proper decline to unanswerable → score `1.0` |
-| **score** | code | `relevance_capped_mean` | `mean(responsive)`, capped at `off_ask_cap` if answer-level on-ask is False |
+| **score** | code | `relevance_tree_capped_mean` | `mean(claim_relevance.weight)`, capped at `off_ask_cap` if answer-level on-ask is False |
 
 ### §4 task_success — verifier-routed `Σ achieved·w / Σ w`
 Inputs: question + answer (+ artifacts/state).
@@ -143,9 +159,11 @@ Inputs: question + answer (+ artifacts/state).
 ## Part 4 — Evidence & Truthfulness
 
 ### §0 triplets — `pipeline/triplets.py`
-Generator (`[[triplets]]` parse-splitter → Bedrock live) decomposes each claim
-into `subject | predicate | object`, carrying claim id + citation + source
-pointer. Pinned (`triplet_extractor_version`); stability = `|∩ ids| / |∪ ids|` over N re-runs.
+**Parse-first** (§0): each claim clause is parsed into `subject | predicate | object`
+by `T1Tools.parse_triplet` over `NlpProvider.parse_clauses` `[T1]`; the generator
+(`[[triplets]]` → Bedrock live) is invoked **only for the residual** the parser
+can't cleanly triple (nested/abstractive predicates) `[T3-gen]`. Carries claim id +
+citation + source pointer. Pinned (`triplet_extractor_version`); stability = `|∩ ids| / |∪ ids|`.
 
 ### §1 groundedness — `|E| / |total triplets|`
 | Step | Tier | Tool | Computation |

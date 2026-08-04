@@ -4,8 +4,10 @@ Certification-grade LLM answer evaluator. **Two categories, eight dimensions:**
 Response Quality (accuracy, completeness, relevance, task_success) + Evidence &
 Truthfulness (groundedness, hallucination, source_quality, source_attribution).
 
-Status: fully implemented (B1–B10 + E1–E9), ~110 tests green, `mypy --strict` +
-`ruff` clean, runs **offline** in `providers.mode: mock`.
+Status: fully implemented (B1–B10 + E1–E9) and design-synced (U1–U7: deterministic
+parse-first extraction, relevance anchor-tree + orphan resolution, completeness
+reference modes, parse-first triplets, forward-declared `ConsistencyProvider`).
+~145 tests green, `mypy --strict` + `ruff` clean, runs **offline** in `providers.mode: mock`.
 
 ## Read in this order
 1. `GUIDE.md` — orientation, repo map, mock→live table, AWS migration runbook, **known deviations (§9)**.
@@ -24,7 +26,10 @@ Status: fully implemented (B1–B10 + E1–E9), ~110 tests green, `mypy --strict
 
 ## Mental model
 - `providers.mode: mock` = deterministic **lexical** stand-ins (token overlap/hash/regex) so everything runs with no network. Going live is a **config flip** (`mode: live`, `models.nli: bedrock`, `hallucination.resolver: live`, real ids/creds) — no code change. See `GUIDE.md` §6.
-- Tiers: **T1** = pure code · **T2** = fixed model (NLI/grounding/embeddings), thresholded in code · **T3-gen** = pinned frozen text (claims/units/triplets/outcomes) · **T3** = judge (the only non-replayable step, cornered into narrow residues).
+- Tiers: **T1** = pure code · **T2** = fixed model (NLI/grounding/embeddings), thresholded in code · **T3-gen** = pinned frozen text (units/outcomes/reverse-questions; the residual triplet + optional realizer) · **T3** = judge (the only non-replayable step, cornered into narrow residues).
+- **Claim decomposition is deterministic parsing** (§0.2), not generation: `pipeline/` uses `NlpProvider.parse_clauses` + `T1Tools` (no judge/generator on the primary path); the optional surface-realizer is off by default. Triplets are parse-first too.
+- **Relevance is an anchor-and-support tree** (§3): edges (entailment-confirmed) → anchors (on-ask + centrality + conformal) → tree (depth-graded) → orphans (off-topic / stranded-veracity / background). Stranded contradictions route to the forward-declared `ConsistencyProvider` stub. The `responsive` atom is still exported to accuracy.
+- **Completeness has three reference modes** (§2): `generated` (default), `archetype`, `templated`; the mode is stamped as `DimensionResult.assurance_mode` and a human recall-sample `recall_miss_rate` is reported.
 - Accuracy *imports* grounded (§1-E&T), source-adequate (§3), attributed (§4), responsive (§3-RQ) — it never recomputes them. Run order lives in `runner.py::Evaluator.evaluate`.
 
 ## Dev loop (this machine, Python 3.14, mock)

@@ -28,8 +28,10 @@ Legend for tier: **T1** code · **T2** fixed model (thresholded in code) ·
 | Dimension base + shared exports | `src/rq_eval/dimensions/` | `Dimension` (`base.py`), `ResponsivenessExport` (`responsiveness.py`) |
 
 **Config data oracles (human-maintained, pinned):**
-`config/prompts/claim-extractor-v1.json`, `config/requirement_templates.yaml`,
-`config/task_templates.yaml`, `config/reliability_list.yaml`,
+`config/prompts/claim-extractor-v1.json` (realizer prompt),
+`config/requirement_templates.yaml`, `config/question_archetypes.yaml`,
+`config/completeness_recall_sample.jsonl`, `config/task_templates.yaml`,
+`config/reliability_list.yaml`, `config/coi_denylist.yaml`,
 `config/calibration/calibration-v1.jsonl`.
 
 ---
@@ -39,10 +41,11 @@ Legend for tier: **T1** code · **T2** fixed model (thresholded in code) ·
 | Design step | Tier | File · class |
 |---|---|---|
 | 1 Segment | T1 | `segmenter.py` · `Segmenter` |
-| 2 Select verifiable spans | T3 | `span_selector.py` · `VerifiableSpanSelector` |
-| 3 Claimify disambiguate + extract | T3 / T3g | `claim_extractor.py` · `ClaimExtractor` |
-| 4 Decontextualize (coref + carry) | T2 + T3 | `decontextualizer.py` · `Decontextualizer` |
-| 5 Pin & measure stability | code | `stability.py` · `StabilityHarness`; prompts `prompts.py` · `PromptLibrary` |
+| 2 Select verifiable spans (lexical hedge/opinion filter) | T1 | `span_selector.py` · `VerifiableSpanSelector` (`T1Tools.is_verifiable`) |
+| 3 Decompose into content-unit clauses (parse; abstractive flagged) | T1 | `claim_extractor.py` · `ClaimExtractor` (`NlpProvider.parse_clauses`) |
+| 3a Optional surface-realizer (droppable, off by default) | T2 pinned | `claim_extractor.py` (`extraction.realizer_enabled`) |
+| 4 Decontextualize (coref + structural self-contained) | T1/T2 | `decontextualizer.py` · `Decontextualizer` (`T1Tools.has_leading_pronoun`) |
+| 5 Pin & measure stability | code | `stability.py` · `StabilityHarness`; realizer prompt `prompts.py` · `PromptLibrary` |
 | Orchestrator / output | — | `pipeline.py` · `ClaimPipeline`, `PipelineResult` |
 
 ## RQ §0.5 — contracts, records & audit
@@ -67,8 +70,9 @@ Records → `contracts.py`. Atom log + replay → `audit/` (`AtomLogger`,
 
 | Design step | Tier | File · class |
 |---|---|---|
-| 1 Tier-1 requirements | oracle | `requirement_templates.py::RequirementTemplates`, `Requirement` (data: `config/requirement_templates.yaml`) |
-| 2 Tier-2 units (top-down + bottom-up) | T3g | `unit_drafter.py::UnitDrafter` (unit shape: `unit.py::Unit`) |
+| 1 Tier-1 requirements (mode-selected) | oracle / T3g | `reference.py::ReferenceModeSelector` → `requirement_templates.py::RequirementTemplates` (templated) · `archetype_templates.py::ArchetypeTemplates` (archetype, data: `config/question_archetypes.yaml`) · generator (generated, **default**) |
+| 1a Assurance mode + human recall miss-rate | code | stamped `DimensionResult.assurance_mode`; `recall_sample.py::RecallSample` → `extra.recall_miss_rate` |
+| 2 Tier-2 units (top-down + extractive bottom-up) | T3g + T1 | `unit_drafter.py::UnitDrafter` (unit shape: `unit.py::Unit`) |
 | 3 Admissibility gate (atomic/self-contained/decidable) | T1+T2 (T3 residual only on double-NLI disagreement) | `admissibility_gate.py::UnitAdmissibilityGate` |
 | 4 Merge/dedupe | T2 | `deduper.py::UnitDeduper` |
 | 5 Label vital/okay | (from oracle) | inherited from Tier-1 `vital` flag (see `GUIDE.md` §9) |
@@ -81,13 +85,15 @@ Records → `contracts.py`. Atom log + replay → `audit/` (`AtomLogger`,
 
 | Design step | Tier | File · class |
 |---|---|---|
-| 1 Method A (reverse-questions + cosine) | T3g+T2 | `method_a.py::MethodAReverseQuestions` |
-| 2 Method B (guardrail relevance, default) | T2 | `method_b.py::MethodBGuardrail` |
-| 3 Answer-level on-topic / on-ask | T2 | `relevance.py::RelevanceDimension` |
-| 4 Claim-level responsive atom (on-topic ∧ on-ask) | T1+T2 (no judge) | `claim_responsiveness.py::ClaimResponsiveness` → `responsiveness.py::ResponsivenessExport` |
-| 4a on-ask = NLI ∨ lexical | T2 (`GroundingGrader`) + T1 (`T1Tools.key_term_overlap`) | `claim_responsiveness.py` (DIVER-QA on-ask) |
-| 5 Combine + off-ask cap | code | `scoring/formulas.py::RelevanceCappedMeanFormula`, `scoring/aggregation.py::OffAskCap` |
-| 6 Abstention (decline/unanswerable, reference-grounded) | T3 | `relevance.py::RelevanceDimension._maybe_abstain` |
+| 1 on-ask primitive + responsive export (on-topic ∧ on-ask, DIVER-QA) | T1+T2 (no judge) | `claim_responsiveness.py::ClaimResponsiveness` (`ClaimSignals`) → `responsiveness.py::ResponsivenessExport` |
+| 2 Edges (marker prior + entailment confirm) | T1+T2 | `edges.py::EdgeBuilder` (`Edge`) |
+| 3 Anchors (on-ask seed + centrality + conformal recall) | T2+code | `anchors.py::AnchorSelector` (`AnchorResult`) |
+| 4 Support tree (depth-graded reachability, max_hops, depth_decay) | code | `tree.py::SupportTree` |
+| 5 Orphan resolution (off-topic / stranded-veracity / background) | T1+T2 | `orphans.py::OrphanResolver`; routes to `providers/consistency.py::ConsistencyProvider` |
+| 6 Depth-graded score + off-ask cap | code | `scoring/formulas.py::RelevanceTreeCappedMeanFormula` |
+| 7 Abstention (decline/unanswerable, reference-grounded) | T3 | `relevance.py::RelevanceDimension._maybe_abstain` |
+| Method A / B (answer-level diagnostics) | T3g+T2 / T2 | `method_a.py::MethodAReverseQuestions`, `method_b.py::MethodBGuardrail` |
+| Orchestrator | — | `relevance.py::RelevanceDimension` |
 
 ## RQ §4 — task_success (verifier-routed)  → `src/rq_eval/dimensions/task_success/`
 
@@ -108,7 +114,9 @@ Records → `contracts.py`. Atom log + replay → `audit/` (`AtomLogger`,
 | Orchestrator | — | `task_success.py::TaskSuccessDimension` |
 
 ## E&T §0 — claims → triplets  → `src/rq_eval/pipeline/triplets.py`
-`ClaimTripletExtractor` (T3g), `TripletStabilityHarness`. Triplet shape:
+`ClaimTripletExtractor` (**parse-first**: `T1` positional/dependency S-P-O via
+`NlpProvider.parse_clauses` + `T1Tools.parse_triplet`; `T3-gen` generator only for
+the nested/abstractive residual), `TripletStabilityHarness`. Triplet shape:
 `contracts.py::Triplet`.
 
 ## E&T §1 — groundedness  → `src/rq_eval/dimensions/groundedness/`

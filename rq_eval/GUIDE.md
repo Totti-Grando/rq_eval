@@ -159,8 +159,9 @@ live. Each has a real implementation already written behind the same interface �
 | `EmbeddingProvider` | hashed bag-of-tokens vectors | **Titan Text Embeddings v2** — `live/embedding.py` | `providers.mode: live` + `models.embed_id` |
 | `GroundingProvider` (E/N/C) | token coverage ≥ `entail_tau` → E; negation-mismatch → C | **Bedrock Guardrails** contextual grounding (E/N) *or* **fairseq RoBERTa-MNLI** (native E/N/C) | `models.nli: bedrock \| fairseq` |
 | `RelevanceProvider` | token Jaccard | **Bedrock Guardrails** relevance score — `live/relevance_guardrail.py` | `providers.mode: live` |
-| `NlpProvider` | regex sentence split + leading-pronoun coref | **spaCy `en_core_web_lg` + coreferee** — `live/nlp.py` | `providers.mode: live` |
+| `NlpProvider` | regex sentence split + leading-pronoun coref + clause splitter (`parse_clauses`) | **spaCy `en_core_web_lg` + coreferee** (dependency-parse ClausIE/PredPatt decomposition) — `live/nlp.py` | `providers.mode: live` |
 | `ResolverProvider` | "exists unless the string looks fabricated" | **urllib HEAD + optional DOI registry** — `live/resolver.py` | `hallucination.resolver: live` |
+| `ConsistencyProvider` | stub: `edge_sound → True`, `route_contradiction → receipt` | Reasoning category (not yet built) — swap the stub, no relevance change | forward-declared (§0.5) |
 
 **What this means concretely:** offline, "grounded", "relevant", "responsive",
 "attributed", "supports", triplet extraction, unit drafting, task-outcome
@@ -258,6 +259,26 @@ reproducibility fence.
 
 ## 9. Known deviations, stubs, and optional pieces (be aware)
 
+- **Claim decomposition is deterministic parsing** (§0.2, U1): the mock uses a
+  clause splitter (`NlpProvider.parse_clauses`); live uses spaCy dependency
+  parse. The optional surface-realizer is **off by default**
+  (`extraction.realizer_enabled: false`) — turn it on only if the realizer-impact
+  test shows the NLI verifier needs realized (vs parse-form) claims. Triplets are
+  parse-first the same way (generator only for the nested/abstractive residual).
+- **Relevance is an anchor-and-support tree** (§3, U2/U3): edges (entailment-
+  confirmed) → anchors (on-ask + centrality + conformal recall) → tree (depth-
+  graded) → orphans. Under the **mock's lexical NLI** the semantic flood-zone
+  (stranded contradiction) can't be detected end-to-end — the classification +
+  routing logic is covered by controlled-label unit tests (`test_relevance_graph.py`);
+  live NLI restores the semantics with no formula change.
+- **`ConsistencyProvider` is a stub** (`providers/consistency.py`): `edge_sound`
+  returns `True` and `route_contradiction` records a receipt. It's the Reasoning
+  category's forward-declared interface — relevance routes to it and never
+  penalizes on unbuilt soundness; swap the stub when Reasoning lands.
+- **Completeness `reference_mode` defaults to `generated`** (open-domain). For a
+  real coverage guarantee on a recurring question-type, set `templated` (or
+  `archetype`); the mode is stamped as `assurance_mode` and a human recall-sample
+  `recall_miss_rate` is the reported error bar.
 - **Method A (RAGAS) is reimplemented directly**, not via the `ragas` library:
   `dimensions/relevance/method_a.py` generates reverse-questions (GeneratorProvider)
   + Titan cosine. `ragas` in `requirements-live.txt` is therefore **unused** —

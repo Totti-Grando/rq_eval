@@ -31,7 +31,8 @@ def _check(name: str, fn: object) -> bool:
 
 
 def _check_core() -> None:
-    for mod in ("pydantic", "yaml", "numpy", "scipy"):
+    # numpy/scipy were pruned in R6 — all statistics are stdlib `math`.
+    for mod in ("pydantic", "yaml"):
         importlib.import_module(mod)
 
 
@@ -42,7 +43,7 @@ def main() -> int:
     print(f"  region={cfg.aws.region} nli={cfg.models.nli} relevance={cfg.relevance.method}")
     print("-" * 60)
 
-    results: list[bool] = [_check("offline-core (pydantic/yaml/numpy/scipy)", _check_core)]
+    results: list[bool] = [_check("offline-core (pydantic/yaml)", _check_core)]
 
     try:
         from rq_eval.providers.factory import ProviderFactory  # noqa: PLC0415

@@ -54,6 +54,30 @@ Two provider interfaces enforce "explain, never override" structurally:
   `verdict`, writes no atom, and no `formula_id` references it (test-enforced), so
   the explanation layer sits strictly downstream of scoring.
 
+### Design-sync update (U1–U7): parse-first extraction, relevance tree, completeness modes
+
+- **Deterministic extraction (§0.2).** `pipeline/` decomposes claims by parsing,
+  not generation: `NlpProvider.parse_clauses` (mock clause splitter / live spaCy
+  ClausIE-style) + a lexical `T1Tools.is_verifiable` filter + a structural
+  self-contained check. No judge, no GeneratorProvider on the primary path;
+  abstractive-implied spans are flagged; an optional pinned `[T2]` surface-realizer
+  is off by default (`extraction.realizer_enabled`). Evidence triplets are
+  parse-first the same way — generator only for the nested/abstractive residual.
+- **Relevance is an anchor-and-support tree (§3).** `dimensions/relevance/`:
+  `EdgeBuilder` (entailment-confirmed premise→conclusion edges) → `AnchorSelector`
+  (on-ask seed + graph centrality + conformal recall band) → `SupportTree`
+  (depth-graded reachability, `max_hops`, `depth_decay`) → `OrphanResolver`
+  (off-topic / stranded-veracity / background; contradictions routed). The score
+  (`relevance_tree_capped_mean`) is fixed NLI + code; the `responsive` export for
+  accuracy is unchanged.
+- **Forward-declared `ConsistencyProvider`.** A Reasoning-category interface
+  (`providers/consistency.py`) that relevance routes edge-soundness and stranded
+  contradictions to; a default stub with safe defaults, swapped cleanly later.
+- **Completeness reference modes (§2).** `ReferenceModeSelector` picks the Tier-1
+  reference by `completeness.reference_mode` — `generated` (default), `archetype`
+  (`question_archetypes.yaml`), `templated` — stamps `assurance_mode` on the
+  result, and reports a human recall-sample `recall_miss_rate` as its error bar.
+
 ## Design-doc section → folder map
 
 This table is verified against the actual tree by
