@@ -14,6 +14,9 @@ from rq_eval.providers.base import CorefResult, NlpProvider
 _SENT = re.compile(r"(?<=[.!?])\s+")
 _LEADING_PRONOUN = re.compile(r"^(he|she|it|they|this|that|these|those)\b", re.IGNORECASE)
 _SUBJECT = re.compile(r"\b([A-Z][a-zA-Z0-9]+(?:\s+[A-Z][a-zA-Z0-9]+)*)\b")
+# clause splitter: coordinating conjunctions / semicolons (the deterministic
+# stand-in for a ClausIE/PredPatt dependency-parse decomposition)
+_CLAUSE = re.compile(r";|\band\b|\bbut\b|\bwhereas\b", re.IGNORECASE)
 
 
 class MockNlpProvider(NlpProvider):
@@ -26,6 +29,15 @@ class MockNlpProvider(NlpProvider):
     def segment(self, text: str) -> list[str]:
         """[T1] Split into sentences on terminal punctuation + whitespace."""
         return [s.strip() for s in _SENT.split(text.strip()) if s.strip()]
+
+    def parse_clauses(self, sentence: str) -> list[str]:
+        """[T1] Deterministic clause decomposition (mock ClausIE stand-in).
+
+        Splits on coordinating conjunctions/semicolons; a sentence with none is
+        returned whole. Trailing punctuation is preserved on the last part.
+        """
+        parts = [p.strip() for p in _CLAUSE.split(sentence.strip()) if p.strip()]
+        return parts if parts else [sentence.strip()]
 
     def resolve_coref(self, text: str, context: str = "") -> CorefResult:
         """[T2] Replace a leading pronoun with the last subject in context."""

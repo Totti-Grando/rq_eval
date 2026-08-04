@@ -32,18 +32,10 @@ class PromptLibrary:
         """The pinned prompt-set version (stamped onto generated references)."""
         return self._version
 
-    def verifiable(self) -> str:
-        """[T3] Prompt: is this span provable true/false (VeriScore filter)?"""
-        return self._data["verifiable"]
+    def realize(self, clause: str) -> str:
+        """[T2, pinned] Prompt: realize a parse-form clause as a fluent claim.
 
-    def disambiguate(self) -> str:
-        """[T3] Prompt: is this ambiguous and unresolvable (flag, don't guess)?"""
-        return self._data["disambiguate"]
-
-    def extract(self, sentence: str) -> str:
-        """[T3-gen] Prompt: extract atomic propositions from ``sentence``."""
-        return self._data["extract"].replace("{sentence}", sentence)
-
-    def decontextualized(self) -> str:
-        """[T3] Prompt: is the claim self-contained after coref resolution?"""
-        return self._data["decontextualized"]
+        Used only when ``extraction.realizer_enabled`` is set — the primary
+        decomposition path is parse-based and calls no generator.
+        """
+        return self._data["realize"].replace("{clause}", clause)

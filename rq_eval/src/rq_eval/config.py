@@ -149,6 +149,20 @@ class PipelineConfig(BaseModel):
     stability_runs: int = Field(ge=1)
 
 
+class ExtractionConfig(BaseModel):
+    """§0.2 knobs — deterministic claim extraction.
+
+    ``realizer_enabled`` gates the *optional*, pinned surface-realizer: the
+    primary decomposition path is parse-based ``[T1]`` and calls no generator;
+    the realizer (a ``[T2]`` pinned generation that turns parse-form units into
+    fluent standalone claims) is off by default and only turned on if the
+    realizer-impact test shows the downstream NLI verifier needs it.
+    """
+
+    model_config = _Strict
+    realizer_enabled: bool = False
+
+
 class ConformalConfig(BaseModel):
     """§5 knobs — coverage target, min-n, per-stratum toggle, calibration path."""
 
@@ -212,6 +226,7 @@ class Config(BaseModel):
     source_attribution: SourceAttributionConfig
     relevance: RelevanceConfig
     pipeline: PipelineConfig
+    extraction: ExtractionConfig
     conformal: ConformalConfig
     pins: PinsConfig
     seeds: SeedsConfig

@@ -1,10 +1,12 @@
-"""§0 — the shared claim-extraction pipeline (build order B4).
+"""§0.2 — the shared claim-extraction pipeline (deterministic parse-first).
 
-Orchestrates the five steps into cached, decontextualized, verifiable
-:class:`Claim`s: segment [T1] -> select verifiable spans [T3] -> Claimify
-disambiguate + extract [T3/T3-gen] -> decontextualize [T2/T3] -> pin & measure
-stability. Unverifiable spans are excluded and routed; the stability metric is
-computed and reported.
+Orchestrates the steps into cached, decontextualized, verifiable :class:`Claim`s:
+segment [T1] -> select verifiable spans [T1] (lexical hedge/opinion filter) ->
+decompose into content-unit clauses [T1] (parse-based; abstractive-implied spans
+flagged, not generated; optional pinned [T2] realizer) -> decontextualize [T1/T2]
+(coref + structural self-contained check) -> pin & measure stability. No judge or
+generator is called on the primary path. Unverifiable/flagged spans are routed;
+the stability metric is computed and reported.
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ from typing import TYPE_CHECKING
 
 from rq_eval.audit.atom_logger import AtomLogger
 from rq_eval.contracts import Claim
+from rq_eval.graders.t1 import T1Tools
 from rq_eval.pipeline.claim_extractor import ClaimExtractor
 from rq_eval.pipeline.decontextualizer import Decontextualizer
 from rq_eval.pipeline.prompts import PromptLibrary
@@ -57,12 +60,14 @@ class ClaimPipeline:
         stamp = ModelStamp(cfg)
         prompts = PromptLibrary(cfg)
         seed = cfg.seeds.judge
+        t1 = T1Tools()
         self._segmenter = Segmenter(providers.nlp)
-        self._selector = VerifiableSpanSelector(providers.judge, prompts, stamp.judge(), seed)
+        self._selector = VerifiableSpanSelector(t1, seed)
         self._claimer = ClaimExtractor(
-            providers.judge, providers.generator, prompts, stamp.judge(), stamp.generator(), seed
+            providers.nlp, t1, providers.generator, prompts, stamp.generator(), seed,
+            cfg.extraction.realizer_enabled,
         )
-        self._decon = Decontextualizer(providers.nlp, providers.judge, prompts, stamp.judge(), seed)
+        self._decon = Decontextualizer(providers.nlp, t1, seed)
 
     def run(self, answer: str, context: str = "") -> PipelineResult:
         """Extract claims (logging atoms) and attach the stability metric."""

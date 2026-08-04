@@ -1,54 +1,53 @@
-"""§0 step 4 — decontextualize each claim [T2 coref + T3].
+"""§0.2 — decontextualize a proposition [T1/T2] (coref, no judge).
 
-Resolve pronouns/referents (carrying context forward, per Molecular Facts /
-DnDScore) so the verifier sees a self-contained claim, then confirm it reads as
-self-contained. One boolean logged per claim.
+Coreference substitution (``NlpProvider.resolve_coref`` — coreferee live, a
+leading-pronoun rule in the mock) carries the surrounding context into the claim,
+per Molecular Facts / DnDScore. Self-containedness is then a **structural** check
+— the resolved claim must not still open with an unresolved pronoun — mirroring
+the admissibility gate; no judge is consulted.
 """
 
 from __future__ import annotations
 
+import hashlib
+
 from rq_eval.audit.atom_logger import AtomLogger
-from rq_eval.pipeline.prompts import PromptLibrary
-from rq_eval.providers.base import NlpProvider, ScoringJudge
+from rq_eval.graders.t1 import T1Tools
+from rq_eval.providers.base import NlpProvider
 
 
 class Decontextualizer:
-    """[T2/T3] Coref-resolve a proposition, then verify it is self-contained."""
+    """[T1/T2] Resolve references, then structurally verify self-containedness."""
 
     grader_id = "pipeline.decontextualized"
 
-    def __init__(
-        self,
-        nlp: NlpProvider,
-        judge: ScoringJudge,
-        prompts: PromptLibrary,
-        stamp: tuple[str, str],
-        seed: int,
-    ) -> None:
-        """Inject NLP + judge, prompts, the judge model stamp, and the seed."""
+    def __init__(self, nlp: NlpProvider, t1: T1Tools, seed: int) -> None:
+        """Inject the NLP provider (coref) + T1 tools + the pipeline seed."""
         self._nlp = nlp
-        self._judge = judge
-        self._prompts = prompts
-        self._model, self._version = stamp
+        self._t1 = t1
         self._seed = seed
 
     def decontextualize(
         self, proposition: str, context: str, logger: AtomLogger | None = None
     ) -> tuple[str, bool]:
-        """Return ``(resolved_text, is_self_contained)``; carry context forward."""
+        """Return ``(resolved_text, self_contained)``; log one T1 atom.
+
+        ``self_contained`` is True iff the resolved text no longer begins with an
+        unresolved pronoun (a pure structural check, not a judge call).
+        """
         resolved = self._nlp.resolve_coref(proposition, context).resolved_text
-        check = self._judge.binary(self._prompts.decontextualized(), resolved)
+        self_contained = not self._t1.has_leading_pronoun(resolved)
         if logger is not None:
             logger.record(
-                subject="claim:" + resolved[:40],
+                subject="claim:" + hashlib.sha256(resolved.encode()).hexdigest()[:12],
                 role="decontextualized",
-                question=self._prompts.decontextualized(),
-                tier="T3",
-                verdict=check.verdict,
-                evidence=check.reason,
+                question="self-contained after coref? (no leading pronoun)",
+                tier="T1",
+                verdict=self_contained,
+                evidence="structural leading-pronoun check",
                 grader_id=self.grader_id,
-                model=self._model,
-                model_version=self._version,
+                model="code",
+                model_version="rq_eval",
                 seed=self._seed,
             )
-        return resolved, check.verdict
+        return resolved, self_contained

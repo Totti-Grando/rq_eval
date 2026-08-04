@@ -23,6 +23,18 @@ _MAGNITUDE = {
     "trillion": 1e12,
 }
 _CONJUNCTION = re.compile(r";|\band\b|\bbut\b|\bwhereas\b", re.IGNORECASE)
+# opinion / hedge / hypothetical markers → not plausibly provable (VeriScore filter)
+_HEDGE = re.compile(
+    r"\b(maybe|perhaps|possibly|probably|likely|arguably|i think|i believe|in my opinion|"
+    r"might|may|could|should|would|seems?|appears?|hypothetically|if\b)\b",
+    re.IGNORECASE,
+)
+# Claimify-style abstractive placeholder: a bracketed span containing a space
+# (e.g. "[a celebrity]") — distinct from a citation token like "[chunk-1]".
+_ABSTRACTIVE = re.compile(r"\[[^\]]*\s[^\]]*\]")
+_LEADING_PRONOUN = re.compile(
+    r"^(he|she|it|they|this|that|these|those|him|her|them|his|its|their)\b", re.IGNORECASE
+)
 _WORD = re.compile(r"[a-z0-9]+")
 _STOP = frozenset(
     "a an the of to in on for and or is are was were be been it its this that with as at by "
@@ -77,6 +89,33 @@ class T1Tools:
     def conjunction_split(self, text: str) -> list[str]:
         """Split on conjunctions/semicolons into candidate atomic parts."""
         return [p.strip() for p in _CONJUNCTION.split(text) if p.strip()]
+
+    def is_verifiable(self, text: str) -> bool:
+        """[T1] True iff the span is plausibly provable (VeriScore filter).
+
+        Opinions, hedges, and hypotheticals carry lexical markers ("maybe",
+        "might", "I think", "if …") and are routed away from truth scoring; the
+        ambiguous remainder is left for an optional fixed ``[T2]`` classifier.
+        """
+        return _HEDGE.search(text) is None
+
+    def is_abstractive_implied(self, text: str) -> bool:
+        """[T1] True iff the span carries an abstractive placeholder to flag.
+
+        Claimify's bracketed ``[a celebrity]`` marks a fact *implied* but not
+        stated. These are flagged (routed out), never generated — the design's
+        deterministic-decomposition rule. A bracketed citation token (no space,
+        e.g. ``[chunk-1]``) is not abstractive.
+        """
+        return _ABSTRACTIVE.search(text) is not None
+
+    def has_leading_pronoun(self, text: str) -> bool:
+        """[T1] True iff the text still opens with an unresolved pronoun/mention.
+
+        Used as the structural self-contained check after coref resolution (no
+        judge): a resolved claim should not begin with "it"/"they"/"this"/… .
+        """
+        return _LEADING_PRONOUN.match(text.strip()) is not None
 
     def word_count(self, text: str) -> int:
         """Number of whitespace-delimited tokens."""

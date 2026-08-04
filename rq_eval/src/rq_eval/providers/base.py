@@ -210,5 +210,14 @@ class NlpProvider(ABC):
         """[T1] Split text into sentences. Deterministic."""
 
     @abstractmethod
+    def parse_clauses(self, sentence: str) -> list[str]:
+        """[T1] Decompose a sentence into content-unit clauses (§0.2).
+
+        Deterministic dependency-parse decomposition (ClausIE/PredPatt-style
+        over spaCy live; a rule/clause splitter in the mock) — *not* generation.
+        A sentence with no separable clause returns itself as the single unit.
+        """
+
+    @abstractmethod
     def resolve_coref(self, text: str, context: str = "") -> CorefResult:
         """[T2] Resolve pronouns/referents, carrying ``context`` forward."""

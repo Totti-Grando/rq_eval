@@ -74,6 +74,10 @@ relevance:
 pipeline:                    # §0 claim-extraction pipeline
   stability_runs: 3          # re-run extraction N times; report claim-set agreement
 
+extraction:                  # §0.2 deterministic claim extraction (parse-first)
+  realizer_enabled: false    # optional pinned [T2] surface-realizer; off unless the
+                             # realizer-impact test shows the NLI verifier needs it
+
 conformal:                   # §5 conformal factuality (statistical guarantee)
   alpha: 0.05                # error budget; target confidence = 1 - alpha
   min_calibration_n: 6       # abstain from the guarantee below this many points

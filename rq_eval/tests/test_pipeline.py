@@ -10,10 +10,10 @@ from rq_eval.audit.atom_logger import AtomLogger
 from rq_eval.audit.clock import FixedClock
 from rq_eval.audit.jsonl_atom_store import JsonlAtomStore
 from rq_eval.config import load_config
+from rq_eval.graders.t1 import T1Tools
 from rq_eval.pipeline.claim_extractor import ClaimExtractor
 from rq_eval.pipeline.pipeline import ClaimPipeline
 from rq_eval.pipeline.prompts import PromptLibrary
-from rq_eval.providers.base import JudgeVerdict
 from rq_eval.providers.factory import ProviderFactory
 
 
@@ -25,7 +25,7 @@ def _pipeline(logger: AtomLogger | None = None) -> ClaimPipeline:
 def test_prompt_library_pins_version() -> None:
     lib = PromptLibrary(load_config())
     assert lib.version == "claim-extractor-v1"
-    assert "{sentence}" not in lib.extract("the sky is blue")
+    assert "{clause}" not in lib.realize("the sky is blue")
 
 
 def test_verifiable_spans_kept_unverifiable_routed(tmp_path: Path) -> None:
@@ -56,25 +56,51 @@ def test_stability_is_one_under_mock() -> None:
     assert result.stability == pytest.approx(1.0)
 
 
-def test_ambiguous_sentence_is_flagged_not_guessed() -> None:
-    """A judge that flags ambiguity yields no claims (flag, don't guess)."""
-
-    class _FlagJudge:
-        def binary(self, question: str, context: str) -> JudgeVerdict:
-            return JudgeVerdict(True, "flagged")
-
+def test_abstractive_implied_is_flagged_not_generated() -> None:
+    """A bracketed abstractive placeholder is flagged (routed), never generated."""
     cfg = load_config()
     lib = PromptLibrary(cfg)
     providers = ProviderFactory(cfg).build()
     extractor = ClaimExtractor(
-        _FlagJudge(),  # type: ignore[arg-type]
+        providers.nlp,
+        T1Tools(),
         providers.generator,
         lib,
-        ("mock-judge", "mock"),
         ("mock-generator", "mock"),
         seed=1,
+        realizer_enabled=False,
     )
-    assert extractor.extract("His notable credits include that film.") == []
+    # a Claimify-style implied fact "[a celebrity]" -> flagged, no claims
+    assert extractor.extract("Credits include a film starring [a celebrity].") == []
+    # a plain factual sentence decomposes deterministically into a claim
+    assert extractor.extract("Real Madrid won the final.") == ["Real Madrid won the final."]
+
+
+def test_realizer_impact_agreement_justifies_default_off() -> None:
+    """Parse-form vs realized claims yield the same NLI verdict → realizer stays off.
+
+    The realizer-impact property (RQ §0.2): if the fixed verifier consumes
+    parse-form units without changing its verdicts, the surface-realizer is
+    droppable. We extract both ways, run the grounding verifier against a source,
+    and require verdict agreement — the evidence for ``realizer_enabled: false``.
+    """
+    cfg = load_config()
+    lib = PromptLibrary(cfg)
+    providers = ProviderFactory(cfg).build()
+    source = "Real Madrid won the final in 2024."
+    sentence = "Real Madrid won the final and the crowd celebrated."
+
+    def _verdicts(realize: bool) -> list[bool]:
+        extractor = ClaimExtractor(
+            providers.nlp, T1Tools(), providers.generator, lib,
+            ("mock-generator", "mock"), seed=1, realizer_enabled=realize,
+        )
+        return [
+            providers.grounding.entails(source, claim).supported
+            for claim in extractor.extract(sentence)
+        ]
+
+    assert _verdicts(realize=False) == _verdicts(realize=True)
 
 
 def test_decontextualization_carries_context_forward() -> None:
