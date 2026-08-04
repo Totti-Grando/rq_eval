@@ -70,6 +70,12 @@ relevance:
   off_ask_cap: 0.5           # missing the specific ask caps the score at this
   lexical_min_overlap: 0.5   # on-ask lexical flag: question key-term coverage >= this (DIVER-QA)
   onask_conformal: false     # optionally conformal-wrap the on-ask decision (§5)
+  # anchor-and-support tree (§3)
+  edge_tau: 0.5              # entails(A,B) >= this confirms a premise->conclusion support edge
+  anchor_alpha: 0.1          # conformal error budget for anchor-set recall
+  anchor_centrality_min: 2   # in-degree (# supporting premises) to promote a claim to anchor
+  max_hops: 3                # bound tree depth from an anchor (long weak chains can't launder)
+  depth_decay: 0.5           # per-hop relevance weight = depth_decay ** depth
 
 pipeline:                    # §0 claim-extraction pipeline
   stability_runs: 3          # re-run extraction N times; report claim-set agreement

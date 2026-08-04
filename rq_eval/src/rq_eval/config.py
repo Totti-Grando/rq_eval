@@ -132,7 +132,7 @@ class SourceQualityConfig(BaseModel):
 
 
 class RelevanceConfig(BaseModel):
-    """§3 knobs — method selection and Method-A reverse-question count."""
+    """§3 knobs — on-ask, the anchor-and-support tree, and Method-A/B."""
 
     model_config = _Strict
     method: Literal["A", "B", "both"]
@@ -140,6 +140,12 @@ class RelevanceConfig(BaseModel):
     off_ask_cap: float = Field(ge=0.0, le=1.0)
     lexical_min_overlap: float = Field(ge=0.0, le=1.0)
     onask_conformal: bool
+    # anchor-and-support tree (§3, part 1/2)
+    edge_tau: float = Field(ge=0.0, le=1.0)  # entails(A,B) >= this confirms a support edge
+    anchor_alpha: float = Field(gt=0.0, lt=1.0)  # conformal error budget for anchor recall
+    anchor_centrality_min: int = Field(ge=1)  # in-degree to promote a claim to anchor
+    max_hops: int = Field(ge=1)  # bound tree depth from an anchor
+    depth_decay: float = Field(gt=0.0, le=1.0)  # per-hop relevance weight = decay ** depth
 
 
 class PipelineConfig(BaseModel):

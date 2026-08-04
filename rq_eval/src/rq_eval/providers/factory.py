@@ -22,6 +22,7 @@ from rq_eval.providers.base import (
     ResolverProvider,
     ScoringJudge,
 )
+from rq_eval.providers.consistency import ConsistencyProvider, StubConsistencyProvider
 
 if TYPE_CHECKING:
     from rq_eval.config import Config
@@ -42,6 +43,7 @@ class Providers:
     relevance: RelevanceProvider
     nlp: NlpProvider
     resolver: ResolverProvider
+    consistency: ConsistencyProvider
 
 
 class ProviderFactory:
@@ -80,6 +82,7 @@ class ProviderFactory:
             relevance=MockRelevanceProvider(seed=s.judge),
             nlp=MockNlpProvider(seed=s.judge),
             resolver=self._build_resolver(),
+            consistency=StubConsistencyProvider(),
         )
 
     # -- live -------------------------------------------------------------- #
@@ -102,6 +105,7 @@ class ProviderFactory:
             relevance=GuardrailRelevanceProvider(self._cfg, session),
             nlp=SpacyNlpProvider(self._cfg),
             resolver=self._build_resolver(),
+            consistency=StubConsistencyProvider(),
         )
 
     def _build_resolver(self) -> ResolverProvider:
@@ -146,4 +150,5 @@ class ProviderFactory:
             check("relevance", lambda: p.relevance.score("why blue?", "the sky is blue")),
             check("nlp", lambda: p.nlp.segment("One. Two.")),
             check("resolver", lambda: p.resolver.resolve("https://example.com")),
+            check("consistency", lambda: p.consistency.edge_sound("a", "b")),
         ]

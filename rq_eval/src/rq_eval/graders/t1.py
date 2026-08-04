@@ -35,6 +35,14 @@ _ABSTRACTIVE = re.compile(r"\[[^\]]*\s[^\]]*\]")
 _LEADING_PRONOUN = re.compile(
     r"^(he|she|it|they|this|that|these|those|him|her|them|his|its|their)\b", re.IGNORECASE
 )
+# discourse markers that *propose* a premise→conclusion edge (candidate prior,
+# §3): noisy on their own, so an edge is only confirmed by entailment.
+_DISCOURSE = re.compile(
+    r"\b(because|since|due to|owing to|as a result|therefore|thus|hence|"
+    r"consequently|tied to|linked to|caused by|leads? to|results? in|"
+    r"resulting in|driven by|so that)\b",
+    re.IGNORECASE,
+)
 _WORD = re.compile(r"[a-z0-9]+")
 _STOP = frozenset(
     "a an the of to in on for and or is are was were be been it its this that with as at by "
@@ -116,6 +124,14 @@ class T1Tools:
         judge): a resolved claim should not begin with "it"/"they"/"this"/… .
         """
         return _LEADING_PRONOUN.match(text.strip()) is not None
+
+    def has_discourse_marker(self, text: str) -> bool:
+        """[T1] True iff the text carries a premise→conclusion discourse marker.
+
+        A cheap *candidate* prior for a support edge ("because", "tied to", …);
+        noisy on its own, so an edge is confirmed only by entailment (§3).
+        """
+        return _DISCOURSE.search(text) is not None
 
     def word_count(self, text: str) -> int:
         """Number of whitespace-delimited tokens."""
