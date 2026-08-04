@@ -52,7 +52,12 @@ class CompletenessDimension(Dimension):
         self._drafter = UnitDrafter(providers.generator, providers.nlp, cfg.seeds.dedupe)
         self._gate = UnitAdmissibilityGate(
             T1Tools(), providers.nlp,
-            JudgeGrader(providers.judge, logger, stamp.judge(), "completeness.decidable", seed),
+            GroundingGrader(
+                providers.grounding, logger, stamp.grounding(), "completeness.decidable_nli", seed
+            ),
+            JudgeGrader(
+                providers.judge, logger, stamp.judge(), "completeness.decidability_residual", seed
+            ),
             logger,
         )
         self._deduper = UnitDeduper(providers.embedding, cfg.completeness.dedupe_tau)
@@ -74,7 +79,9 @@ class CompletenessDimension(Dimension):
         candidates: list[Unit] = []
         for req in requirements:
             candidates.extend(self._drafter.draft(req, sources))
-        frozen = self._deduper.dedupe(self._gate.admit(candidates, sources))
+        frozen = self._deduper.dedupe(
+            self._gate.admit(candidates, answer=eval_input.answer, sources=sources)
+        )
         self._log_frozen_set(frozen, sources)
 
         support = self._assigner.assign(frozen, eval_input.answer)

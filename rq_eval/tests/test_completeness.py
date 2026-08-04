@@ -14,6 +14,7 @@ from rq_eval.dimensions.completeness.admissibility_gate import UnitAdmissibility
 from rq_eval.dimensions.completeness.completeness import CompletenessDimension
 from rq_eval.dimensions.completeness.requirement_templates import RequirementTemplates
 from rq_eval.dimensions.completeness.unit import Unit
+from rq_eval.graders.grounding_grader import GroundingGrader
 from rq_eval.graders.judge_grader import JudgeGrader
 from rq_eval.graders.t1 import T1Tools
 from rq_eval.providers.factory import ProviderFactory
@@ -84,24 +85,32 @@ def test_completeness_replays(tmp_path: Path) -> None:
     assert ReplayVerifier(default_registry()).verify(result, store) is True
 
 
-def test_admissibility_rejects_and_repairs(tmp_path: Path) -> None:
+def test_admissibility_deterministic_double_nli(tmp_path: Path) -> None:
+    """R3: atomic (split) + self-contained + double-NLI; world-knowledge unit rejected."""
     cfg = load_config()
     providers = ProviderFactory(cfg).build()
     store = JsonlAtomStore(tmp_path / "a.jsonl")
+    logger = AtomLogger(store, FixedClock())
     gate = UnitAdmissibilityGate(
         T1Tools(), providers.nlp,
-        JudgeGrader(providers.judge, AtomLogger(store, FixedClock()), ("mock-judge", "mock"),
-                    "completeness.decidable", 1),
-        AtomLogger(store, FixedClock()),
+        GroundingGrader(providers.grounding, logger, ("mock-grounding", "mock"),
+                        "completeness.decidable_nli", 1),
+        JudgeGrader(providers.judge, logger, ("mock-judge", "mock"),
+                    "completeness.decidability_residual", 1),
+        logger,
     )
+    answer = "Revenue rose sharply and costs fell steadily in the quarter."
+    sources = "Paris is the capital of France."
     units = [
-        # non-atomic -> repaired by conjunction split into two atomic parts
+        # non-atomic -> repaired by conjunction split into two atomic parts (both in the answer)
         Unit.create("Revenue rose sharply and costs fell steadily", "r1", True, "top_down"),
-        # too vague / not decidable from the answer alone -> rejected
-        Unit.create("It happened", "r1", True, "top_down"),
+        # world-knowledge: absent from the answer, present in the corpus -> labels flip -> rejected
+        Unit.create("Paris is the capital of France", "r1", True, "bottom_up"),
     ]
-    admitted = gate.admit(units, context="")
-    texts = [u.text for u in admitted]
-    assert "Revenue rose sharply" in texts
-    assert "costs fell steadily" in texts
-    assert "It happened" not in texts
+    admitted = [u.text for u in gate.admit(units, answer=answer, sources=sources)]
+    assert "Revenue rose sharply" in admitted
+    assert "costs fell steadily" in admitted
+    assert "Paris is the capital of France" not in admitted  # double-NLI disagreement -> deferred
+    # the residual judge is the only [T3] here and only fired on the disagreement
+    residual_atoms = [a for a in store.all() if a.role == "decidability_residual"]
+    assert residual_atoms and all(a.tier == "T3" for a in residual_atoms)
