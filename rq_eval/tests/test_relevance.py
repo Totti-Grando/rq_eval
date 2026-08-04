@@ -29,6 +29,24 @@ def _setup(tmp_path: Path, answer: str, question: str):
     return result, store, export, claims
 
 
+def test_on_ask_is_fixed_nli_plus_lexical_no_judge(tmp_path: Path) -> None:
+    """R2: the on-ask path is NLI + lexical, not a ScoringJudge."""
+    _r, store, _e, _c = _setup(
+        tmp_path,
+        answer="Real Madrid won the Champions League final in 2024.",
+        question="Who won the Champions League final in 2024?",
+    )
+    roles = {a.role for a in store.all()}
+    grader_ids = {a.grader_id for a in store.all()}
+    assert {"on_ask_nli", "on_ask_lex", "on_ask_answer", "responsive"} <= roles
+    # the old on-ask judge + the dropped "different sub-question" residual are gone
+    assert "relevance.on_ask" not in grader_ids
+    assert "relevance.residual" not in grader_ids
+    assert "relevance.answer_on_ask" in grader_ids  # now NLI-backed, tier T2
+    on_ask_atom = next(a for a in store.all() if a.role == "on_ask_nli")
+    assert on_ask_atom.tier == "T2"
+
+
 def test_on_topic_answer_scores_high(tmp_path: Path) -> None:
     result, _store, export, claims = _setup(
         tmp_path,

@@ -23,6 +23,17 @@ _MAGNITUDE = {
     "trillion": 1e12,
 }
 _CONJUNCTION = re.compile(r";|\band\b|\bbut\b|\bwhereas\b", re.IGNORECASE)
+_WORD = re.compile(r"[a-z0-9]+")
+_STOP = frozenset(
+    "a an the of to in on for and or is are was were be been it its this that with as at by "
+    "from into about how why what which who when where whom does did do can could should would "
+    "will was were the".split()
+)
+# leading interrogative/auxiliary words dropped when templating an ask hypothesis
+_LEADING_ASK = frozenset(
+    "what which who whom whose when where why how is are was were do does did can could should "
+    "would will".split()
+)
 
 
 class T1Tools:
@@ -70,3 +81,24 @@ class T1Tools:
     def word_count(self, text: str) -> int:
         """Number of whitespace-delimited tokens."""
         return len(text.split())
+
+    def ask_hypothesis(self, question: str) -> str:
+        """[T1] Template a question's specific ask into a declarative hypothesis.
+
+        Drops the trailing '?' and a single leading interrogative/auxiliary word
+        (no generation), leaving the content the answer must address — the NLI
+        hypothesis for the on-ask check (DIVER-QA).
+        """
+        text = question.strip().rstrip("?").strip()
+        words = text.split()
+        if words and words[0].lower() in _LEADING_ASK:
+            words = words[1:]
+        return " ".join(words) if words else text
+
+    def key_term_overlap(self, a: str, b: str) -> float:
+        """[T1] Coverage of ``a``'s content words by ``b`` ∈ [0, 1] (lexical flag)."""
+        ta = {t for t in _WORD.findall(a.lower()) if t not in _STOP}
+        if not ta:
+            return 0.0
+        tb = {t for t in _WORD.findall(b.lower()) if t not in _STOP}
+        return len(ta & tb) / len(ta)

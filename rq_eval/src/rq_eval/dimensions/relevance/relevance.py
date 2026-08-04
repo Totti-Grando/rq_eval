@@ -17,8 +17,10 @@ from rq_eval.dimensions.relevance.claim_responsiveness import ClaimResponsivenes
 from rq_eval.dimensions.relevance.method_a import MethodAReverseQuestions
 from rq_eval.dimensions.relevance.method_b import MethodBGuardrail
 from rq_eval.dimensions.responsiveness import ResponsivenessExport
+from rq_eval.graders.grounding_grader import GroundingGrader
 from rq_eval.graders.judge_grader import JudgeGrader
 from rq_eval.graders.relevance_grader import RelevanceGrader
+from rq_eval.graders.t1 import T1Tools
 from rq_eval.providers.model_stamp import ModelStamp
 from rq_eval.scoring.bands import BandMapper
 from rq_eval.scoring.formulas import default_registry
@@ -54,13 +56,17 @@ class RelevanceDimension(Dimension):
         self._cap = cfg.relevance.off_ask_cap
         stamp = ModelStamp(cfg)
         seed = cfg.seeds.judge
+        self._seed = seed
+        self._t1 = T1Tools()
+        self._lex_min = cfg.relevance.lexical_min_overlap
+        self._grounding_stamp = stamp.grounding()
         self._on_topic = RelevanceGrader(
             providers.relevance, cfg.thresholds.relevance_tau, logger, stamp.relevance(),
             "relevance.on_topic", seed,
         )
-        self._on_ask = JudgeGrader(providers.judge, logger, stamp.judge(), "relevance.on_ask", seed)
-        self._answer_ask = JudgeGrader(
-            providers.judge, logger, stamp.judge(), "relevance.answer_on_ask", seed
+        # on-ask is now fixed NLI + lexical (DIVER-QA) — no judge on the on-ask path
+        self._on_ask_nli = GroundingGrader(
+            providers.grounding, logger, stamp.grounding(), "relevance.on_ask_nli", seed
         )
         self._decline = JudgeGrader(
             providers.judge, logger, stamp.judge(), "relevance.decline", seed
@@ -68,9 +74,9 @@ class RelevanceDimension(Dimension):
         self._unans = JudgeGrader(
             providers.judge, logger, stamp.judge(), "relevance.unanswerable", seed
         )
-        residual = JudgeGrader(providers.judge, logger, stamp.judge(), "relevance.residual", seed)
         self._responsiveness = ClaimResponsiveness(
-            self._on_topic, self._on_ask, residual, logger, stamp.relevance(), seed
+            self._on_topic, self._on_ask_nli, self._t1, logger, stamp.relevance(), seed,
+            self._lex_min,
         )
         self._method_a = MethodAReverseQuestions(
             providers.generator, providers.embedding, cfg.relevance.reverse_questions_n,
@@ -96,10 +102,7 @@ class RelevanceDimension(Dimension):
             )
 
         extra = self._answer_level_scores(q, a)
-        answer_ask = self._answer_ask.judge(
-            subject="answer", role="on_ask_answer", question=f"[[overlap:0.5]] {q}",
-            context=a, weight=self._cap, tier="T2",
-        )
+        answer_ask = self._answer_on_ask(q, a)
         responsive = self._responsiveness.compute(q, self._claims, self._export)
         atoms: list[AtomRecord] = [answer_ask, *responsive]
         score = self._registry.compute("relevance_capped_mean", atoms)
@@ -129,6 +132,18 @@ class RelevanceDimension(Dimension):
                 model_version=self._abstain_stamp[1], seed=self._cfg.seeds.judge,
             )
         return None
+
+    def _answer_on_ask(self, question: str, answer: str) -> AtomRecord:
+        """Answer-level on-ask atom (fixed NLI ∨ lexical); weight carries the cap."""
+        ask = self._t1.ask_hypothesis(question)
+        nli = self._on_ask_nli.classify(premise=answer, hypothesis=ask).supported
+        lex = self._t1.key_term_overlap(question, answer) >= self._lex_min
+        return self._logger.record(
+            subject="answer", role="on_ask_answer", question="answer addresses the ask?",
+            tier="T2", verdict=(nli or lex), weight=self._cap,
+            evidence=f"nli={nli} lex={lex}", grader_id="relevance.answer_on_ask",
+            model=self._grounding_stamp[0], model_version=self._grounding_stamp[1], seed=self._seed,
+        )
 
     def _answer_level_scores(self, question: str, answer: str) -> dict[str, float]:
         """Method-A diagnostic and/or Method-B gate scores (reported in extra)."""

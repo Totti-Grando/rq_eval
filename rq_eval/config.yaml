@@ -65,6 +65,8 @@ relevance:
   method: B                  # A | B | both  (B == deterministic-first default)
   reverse_questions_n: 3     # Method A: questions generated from the answer
   off_ask_cap: 0.5           # missing the specific ask caps the score at this
+  lexical_min_overlap: 0.5   # on-ask lexical flag: question key-term coverage >= this (DIVER-QA)
+  onask_conformal: false     # optionally conformal-wrap the on-ask decision (§5)
 
 pipeline:                    # §0 claim-extraction pipeline
   stability_runs: 3          # re-run extraction N times; report claim-set agreement

@@ -135,6 +135,8 @@ class RelevanceConfig(BaseModel):
     method: Literal["A", "B", "both"]
     reverse_questions_n: int = Field(ge=1)
     off_ask_cap: float = Field(ge=0.0, le=1.0)
+    lexical_min_overlap: float = Field(ge=0.0, le=1.0)
+    onask_conformal: bool
 
 
 class PipelineConfig(BaseModel):

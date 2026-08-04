@@ -1,13 +1,12 @@
-"""§3 step 4 — per-claim responsive atom (on-topic ∧ on-ask) [T2].
+"""§3 step 4 — per-claim responsive atom (on-topic ∧ on-ask) [T2/T1].
 
-For each claim we compute two T2 signals and AND them into the single
-``responsive`` atom that accuracy imports:
+Both signals are fixed (no judge, per the DIVER-QA reform):
+* on-topic — `RelevanceProvider.score(question, claim) ≥ relevance_tau` `[T2]`;
+* on-ask  — `on_ask_nli ∨ on_ask_lex`, where `on_ask_nli = entails(premise=claim,
+  hypothesis=ask) == E` `[T2]` (ask = `T1Tools.ask_hypothesis(question)`) and
+  `on_ask_lex = key_term_overlap(question, claim) ≥ lexical_min_overlap` `[T1]`.
 
-* on-topic — symmetric relevance of the claim to the question (relevance provider);
-* on-ask  — the claim covers the question's specific terms (judge coverage).
-
-The subtle "on-topic but answers a different sub-question" case (on-topic ∧
-¬on-ask) is sent to a thin [T3] residual judge for audit only.
+`responsive = on_topic ∧ on_ask` is the boolean accuracy imports.
 """
 
 from __future__ import annotations
@@ -15,66 +14,63 @@ from __future__ import annotations
 from rq_eval.audit.atom_logger import AtomLogger
 from rq_eval.contracts import AtomRecord, Claim
 from rq_eval.dimensions.responsiveness import ResponsivenessExport
-from rq_eval.graders.judge_grader import JudgeGrader
+from rq_eval.graders.grounding_grader import GroundingGrader
 from rq_eval.graders.relevance_grader import RelevanceGrader
+from rq_eval.graders.t1 import T1Tools
+
+_CODE = ("code", "rq_eval")
 
 
 class ClaimResponsiveness:
-    """Computes + logs the per-claim responsive atom and publishes it."""
+    """Computes + logs the per-claim responsive atom (fixed NLI + lexical)."""
 
     def __init__(
         self,
         on_topic: RelevanceGrader,
-        on_ask: JudgeGrader,
-        residual: JudgeGrader,
+        on_ask_nli: GroundingGrader,
+        t1: T1Tools,
         logger: AtomLogger,
         stamp: tuple[str, str],
         seed: int,
+        lexical_min_overlap: float,
     ) -> None:
-        """Inject the on-topic/on-ask/residual graders, logger, stamp, seed."""
+        """Inject the on-topic (relevance) + on-ask (NLI) graders, T1 tools, config."""
         self._on_topic = on_topic
-        self._on_ask = on_ask
-        self._residual = residual
+        self._on_ask_nli = on_ask_nli
+        self._t1 = t1
         self._logger = logger
         self._model, self._version = stamp
         self._seed = seed
+        self._lex_min = lexical_min_overlap
 
     def compute(
         self, question: str, claims: list[Claim], export: ResponsivenessExport
     ) -> list[AtomRecord]:
         """Return one responsive atom per claim; publish each to ``export``."""
+        ask = self._t1.ask_hypothesis(question)
         atoms: list[AtomRecord] = []
         for claim in claims:
             on_topic = self._on_topic.check(
                 subject=claim.id, role="on_topic", query=question, response=claim.text
             )
-            on_ask = self._on_ask.judge(
-                subject=claim.id,
-                role="on_ask_claim",
-                question=f"[[overlap:0.5]] {question}",
-                context=claim.text,
-                tier="T2",
+            nli_atom, _ = self._on_ask_nli.assess(
+                subject=claim.id, role="on_ask_nli", premise=claim.text, hypothesis=ask
             )
-            responsive = on_topic.verdict and on_ask.verdict
+            lex = self._t1.key_term_overlap(question, claim.text) >= self._lex_min
+            self._logger.record(
+                subject=claim.id, role="on_ask_lex", question="lexical key-term overlap",
+                tier="T1", verdict=lex, evidence=f"min={self._lex_min}",
+                grader_id="relevance.on_ask_lex", model=_CODE[0], model_version=_CODE[1],
+            )
+            on_ask = nli_atom.verdict or lex
+            responsive = on_topic.verdict and on_ask
             atom = self._logger.record(
-                subject=claim.id,
-                role="responsive",
-                question="on_topic AND on_ask",
-                tier="T2",
-                verdict=responsive,
-                evidence=f"on_topic={on_topic.verdict} on_ask={on_ask.verdict}",
-                grader_id="relevance.responsive",
-                model=self._model,
-                model_version=self._version,
-                seed=self._seed,
+                subject=claim.id, role="responsive", question="on_topic AND on_ask",
+                tier="T2", verdict=responsive,
+                evidence=f"on_topic={on_topic.verdict} nli={nli_atom.verdict} lex={lex}",
+                grader_id="relevance.responsive", model=self._model,
+                model_version=self._version, seed=self._seed,
             )
             export.set(claim.id, atom)
             atoms.append(atom)
-            if on_topic.verdict and not on_ask.verdict:  # thin residual (audit only)
-                self._residual.judge(
-                    subject=claim.id,
-                    role="residual",
-                    question="[[deny]] Does this on-topic claim answer a different sub-question?",
-                    context=claim.text,
-                )
         return atoms
