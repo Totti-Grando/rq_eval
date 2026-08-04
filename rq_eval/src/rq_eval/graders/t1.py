@@ -43,6 +43,9 @@ _DISCOURSE = re.compile(
     r"resulting in|driven by|so that)\b",
     re.IGNORECASE,
 )
+# nested/abstractive predicates a positional parse can't cleanly triple ->
+# routed to the pinned generator residual (Evidence §0)
+_NESTING = re.compile(r"\b(that|which|who|whom|whose|whether)\b", re.IGNORECASE)
 _WORD = re.compile(r"[a-z0-9]+")
 _STOP = frozenset(
     "a an the of to in on for and or is are was were be been it its this that with as at by "
@@ -132,6 +135,25 @@ class T1Tools:
         noisy on its own, so an edge is confirmed only by entailment (§3).
         """
         return _DISCOURSE.search(text) is not None
+
+    def parse_triplet(self, text: str) -> tuple[str, str, str] | None:
+        """[T1] Parse a clause into a subject|predicate|object tuple, or None.
+
+        The deterministic parse-first path for Evidence §0 triplets (PredPatt/
+        OpenIE-style). Returns ``None`` for the residual the parser can't cleanly
+        triple — nested predicates ("that"/"which"/…) or empty text — which the
+        caller routes to the pinned generator. The mock uses a positional
+        heuristic (subject | predicate | rest); the live path uses the parse.
+        """
+        if _NESTING.search(text):
+            return None
+        toks = text.split()
+        if not toks:
+            return None
+        subject = toks[0]
+        predicate = toks[1] if len(toks) > 1 else ""
+        obj = " ".join(toks[2:])
+        return (subject, predicate, obj)
 
     def word_count(self, text: str) -> int:
         """Number of whitespace-delimited tokens."""

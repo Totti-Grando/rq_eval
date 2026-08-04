@@ -1,10 +1,13 @@
-"""§0 (Evidence & Truthfulness) — claims → claim-triplets [T3-gen].
+"""§0 (Evidence & Truthfulness) — claims → claim-triplets (parse-first).
 
 RefChecker-style subject-predicate-object decomposition: each cached Claim is
 split into triplets checked separately by the groundedness/attribution verifiers
-(triplet-level checking beats sentence-level by 4–9 pts). Pinned by
-``pins.triplet_extractor_version``; stability measured over re-runs. The mock
-generator's ``[[triplets]]`` tag is the deterministic parse-based splitter.
+(triplet-level checking beats sentence-level by 4–9 pts). **Parse-first,
+consistent with §0.2:** the primary path parses each clause into S-P-O with the
+deterministic parse `[T1]` (reusing ``NlpProvider.parse_clauses`` + ``T1Tools``);
+the GeneratorProvider is used **only for the residual** the parser can't cleanly
+triple — nested/abstractive predicates `[T3-gen]`. Pinned by
+``pins.triplet_extractor_version``; stability measured over re-runs.
 """
 
 from __future__ import annotations
@@ -12,13 +15,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from rq_eval.contracts import Claim, Triplet
-from rq_eval.providers.base import GeneratorProvider
+from rq_eval.graders.t1 import T1Tools
+from rq_eval.providers.base import GeneratorProvider, NlpProvider
 
 if TYPE_CHECKING:
     from rq_eval.config import Config
 
-# Pinned prompt (mock: [[triplets]] parse-splitter on the payload; live: strip
-# tag + unwrap {{ }} -> a real RefChecker-style extraction instruction).
+# Pinned prompt for the RESIDUAL only (mock: [[triplets]] parse-splitter; live:
+# strip tag + unwrap {{ }} -> a RefChecker-style extraction of a nested clause).
 _PROMPT = (
     "[[triplets]] Decompose into subject-predicate-object triplets, "
     "one per line as 'subject | predicate | object'. {{ {claim} }}"
@@ -26,11 +30,15 @@ _PROMPT = (
 
 
 class ClaimTripletExtractor:
-    """[T3-gen] Decomposes claims into provenance-carrying triplets."""
+    """[T1 parse-first + T3-gen residual] Claims → provenance-carrying triplets."""
 
-    def __init__(self, generator: GeneratorProvider, cfg: Config) -> None:
-        """Inject the generator; pin the extractor version + seed from config."""
+    def __init__(
+        self, generator: GeneratorProvider, nlp: NlpProvider, t1: T1Tools, cfg: Config
+    ) -> None:
+        """Inject the generator (residual only) + NLP parse + T1 tools; pin version/seed."""
         self._generator = generator
+        self._nlp = nlp
+        self._t1 = t1
         self._version = cfg.pins.triplet_extractor_version
         self._seed = cfg.seeds.judge
 
@@ -40,11 +48,17 @@ class ClaimTripletExtractor:
         return self._version
 
     def extract(self, claim: Claim) -> list[Triplet]:
-        """Return ≥1 triplet for ``claim``, each carrying its provenance."""
-        result = self._generator.generate(
-            _PROMPT.replace("{claim}", claim.text), seed=self._seed
-        )
-        triplets = [self._parse(claim, item) for item in result.items if item.strip()]
+        """Return ≥1 triplet for ``claim``: parse each clause, generate the residual."""
+        triplets: list[Triplet] = []
+        for clause in self._nlp.parse_clauses(claim.text):
+            parsed = self._t1.parse_triplet(clause)
+            if parsed is not None:  # [T1] clean positional/dependency parse
+                triplets.append(self._make(claim, *parsed))
+            else:  # [T3-gen] residual: nested/abstractive predicate
+                result = self._generator.generate(
+                    _PROMPT.replace("{claim}", clause), seed=self._seed
+                )
+                triplets.extend(self._parse(claim, item) for item in result.items if item.strip())
         if not triplets:  # always ≥1 triplet per claim
             triplets = [
                 Triplet.create(
@@ -53,6 +67,12 @@ class ClaimTripletExtractor:
                 )
             ]
         return triplets
+
+    def _make(self, claim: Claim, subject: str, predicate: str, obj: str) -> Triplet:
+        return Triplet.create(
+            claim_id=claim.id, subject=subject, predicate=predicate, obj=obj,
+            citation=claim.citation, source_pointer=claim.source_sentence,
+        )
 
     def extract_all(self, claims: list[Claim]) -> list[Triplet]:
         """Flatten :meth:`extract` over many claims."""

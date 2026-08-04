@@ -29,6 +29,7 @@ from rq_eval.dimensions.source_attribution.export import AttributionExport
 from rq_eval.dimensions.source_attribution.source_attribution import SourceAttributionDimension
 from rq_eval.dimensions.source_quality.source_quality import SourceQualityDimension
 from rq_eval.dimensions.task_success.task_success import TaskSuccessDimension
+from rq_eval.graders.t1 import T1Tools
 from rq_eval.pipeline.pipeline import ClaimPipeline
 from rq_eval.pipeline.triplets import ClaimTripletExtractor
 from rq_eval.providers.factory import ProviderFactory, Providers
@@ -75,7 +76,7 @@ class Evaluator:
         context_text = " ".join(c.text for c in eval_input.context)
         pres = ClaimPipeline(p, cfg, log).run(eval_input.answer, context_text)
         claims = pres.claims
-        triplets = ClaimTripletExtractor(p.generator, cfg).extract_all(claims)
+        triplets = ClaimTripletExtractor(p.generator, p.nlp, T1Tools(), cfg).extract_all(claims)
         conformal = self._calibrate_conformal()
 
         responsive = ResponsivenessExport()
