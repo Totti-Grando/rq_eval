@@ -124,6 +124,8 @@ class SourceQualityConfig(BaseModel):
     adequacy_threshold: float = Field(ge=0.0, le=1.0)
     source_adequate_default: bool
     corroboration_min: int = Field(ge=1)
+    coi_denylist: str
+    affiliation_rule: bool
     disinterest_sample_rate: float = Field(ge=0.0, le=1.0)
     as_of_date: str
 
@@ -166,6 +168,7 @@ class PinsConfig(BaseModel):
     nuggetizer_version: str
     template_version: str
     reliability_version: str
+    coi_version: str
     calibration_version: str
 
 

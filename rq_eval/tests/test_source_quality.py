@@ -30,6 +30,34 @@ def test_reliability_list_allow_deny() -> None:
     assert rl.is_reliable(None) is True  # internal corpus
 
 
+def test_coi_rule_flags_self_citation_and_denylist() -> None:
+    """R4: disinterest decided by the [T1] COI rule (self-citation + denylist)."""
+    from rq_eval.dimensions.source_quality.coi import CoiRule
+
+    rule = CoiRule(load_config())
+    # self-citation: a source about Acme published on acme.com -> affiliation conflict
+    acme = ContextChunk(id="s1", text="Acme reported record profits.", domain="acme.com")
+    verdict, reason = rule.decide(acme, "Acme reported record profits this quarter.")
+    assert verdict is False and reason == "affiliation"
+    # denylisted domain -> conflicted regardless of subject
+    pr = ContextChunk(id="s2", text="x", domain="press.example")
+    assert rule.decide(pr, "Beta Corp grew revenue.")[0] is False
+    # independent web source -> ambiguous (rule not decisive; would sample the judge)
+    ind = ContextChunk(id="s3", text="x", domain="reuters.com")
+    assert rule.decide(ind, "Acme reported record profits.")[0] is None
+    # internal corpus (no domain) -> decisively disinterested
+    assert rule.decide(ContextChunk(id="s4", text="x"), "anything")[0] is True
+
+
+def test_disinterest_is_t1_when_rule_decisive(tmp_path: Path) -> None:
+    dim, store = _dim(tmp_path / "a.jsonl")
+    ctx = [ContextChunk(id="chunk-1", text="Acme reported record profits.",
+                        url="https://acme.com/pr", domain="acme.com")]
+    dim.evaluate(EvalInput(question="q", answer="Acme reported record profits.", context=ctx))
+    di = next(a for a in store.all() if a.role == "sq_disinterested")
+    assert di.verdict is False and di.tier == "T1"  # COI rule decisive, no judge
+
+
 def test_internal_source_scores_high(tmp_path: Path) -> None:
     # internal chunk (no url/domain) -> metadata checks satisfied by construction
     dim, store = _dim(tmp_path / "a.jsonl")

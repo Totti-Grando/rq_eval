@@ -19,6 +19,7 @@ from rq_eval.dimensions.base import Dimension
 from rq_eval.dimensions.groundedness.export import GroundednessExport
 from rq_eval.dimensions.responsiveness import ResponsivenessExport
 from rq_eval.dimensions.source_attribution.provider import AttributionProviderImpl
+from rq_eval.dimensions.source_quality.coi import CoiRule
 from rq_eval.dimensions.source_quality.provider import SourceQualityProviderImpl
 from rq_eval.dimensions.source_quality.reliability_list import ReliabilityList
 from rq_eval.dimensions.source_quality.scorer import SourceQualityScorer
@@ -76,7 +77,8 @@ class AccuracyDimension(Dimension):
             providers.judge, logger, stamp.judge(), "accuracy.sq_disinterest", seed
         )
         sq_scorer = SourceQualityScorer(
-            cfg, logger, sq_supports, sq_judge, ReliabilityList(cfg), providers.resolver.resolve
+            cfg, logger, sq_supports, sq_judge, ReliabilityList(cfg), CoiRule(cfg),
+            providers.resolver.resolve,
         )
         self._claim_accuracy = ClaimAccuracy(
             ClaimAccuracyDeps(

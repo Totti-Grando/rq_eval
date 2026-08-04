@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 from rq_eval.audit.atom_logger import AtomLogger
 from rq_eval.contracts import AtomRecord, DimensionResult, EvalInput
 from rq_eval.dimensions.base import Dimension
+from rq_eval.dimensions.source_quality.coi import CoiRule
 from rq_eval.dimensions.source_quality.reliability_list import ReliabilityList
 from rq_eval.dimensions.source_quality.scorer import SourceQualityScorer
 from rq_eval.graders.grounding_grader import GroundingGrader
@@ -46,7 +47,8 @@ class SourceQualityDimension(Dimension):
             providers.judge, logger, stamp.judge(), "source_quality.disinterest", seed
         )
         self._scorer = SourceQualityScorer(
-            cfg, logger, grounding, judge, ReliabilityList(cfg), providers.resolver.resolve
+            cfg, logger, grounding, judge, ReliabilityList(cfg), CoiRule(cfg),
+            providers.resolver.resolve,
         )
         self._threshold = cfg.source_quality.adequacy_threshold
         self._registry = default_registry()

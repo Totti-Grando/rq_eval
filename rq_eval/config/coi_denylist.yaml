@@ -1,0 +1,14 @@
+# Conflict-of-interest oracle (Evidence §3 disinterest, R4) — human-maintained,
+# pinned (pins.coi_version). A source is conflicted (disinterested = False) if its
+# domain/author is denylisted, OR (affiliation rule) the source's org matches the
+# claim's subject entity (self-citation). Rule-decisive cases skip the judge.
+
+version: coi-v1
+
+domains:
+  - press.example          # generic PR wire
+  - ir.example             # investor-relations self-publishing
+
+authors:
+  - "Company Communications"
+  - "Investor Relations"
