@@ -4,19 +4,27 @@
 faithfulness**: is each claim entailed by the retrieved context. The reproducible
 T2 core the whole category rests on.
 
-**Purpose:** classify every claim-triplet against its nearest context span as
-Entailment/Neutral/Contradiction and score the supported fraction. Exports the
-per-claim `grounded?` (all its triplets E) for accuracy to import, and per-triplet
-confidences for the conformal layer (§5).
+**Purpose:** run one **per-chunk support pass** — for each triplet, entail the
+top-`groundedness_k` chunks and collect the **support set** `S = {chunk : E}`
+(grouped by document). Score the supported fraction; **export `S`** as the single
+artifact the whole Evidence category derives from (source_quality reads
+supports/corroboration off it; source_attribution intersects the cited set `C`
+with it — no further NLI). Per-triplet confidences feed the conformal layer (§5).
+
+**Scope statement:** groundedness is **direct, per-claim source presence** — the
+axiom-*builder* for the claim graph (§RQ 0.3), **not** the answer's headline
+factuality number. A validly-*derived* claim scores "not directly grounded" here;
+its transitive truth is accuracy's DAG resolution (§RQ 1).
 
 **Classes:**
-- `SimilarityPreFilter` — [T1] pick the nearest context span per triplet (embeddings; not the score).
-- `GroundednessDimension` — orchestrate pre-filter → entailment → score.
-- `GroundednessExport` — the §1→accuracy hand-off (per-claim grounded atom + triplet confidences).
+- `SimilarityPreFilter` — [T1] `select_k`: rank chunks, keep top-`groundedness_k` per triplet (embeddings; not the score).
+- `GroundednessDimension` — per kept chunk `entails(chunk, triplet)`; build + log `S`; score `|S≠∅|/|total|`.
+- `GroundednessExport` — the support-set hand-off: per-claim `S` (chunk-ids + distinct docs) + answer-wide aggregate + grounded atom + confidences.
 
 **Calculations:**
-- `groundedness = |E-labeled triplets| / |total triplets|` (`mean` over triplet support atoms; RAGAS-faithfulness `|V|/|S|`).
-- per-claim `grounded? = AND(triplet.label == E)`.
+- `S(triplet) = {chunk : entails(chunk, triplet) == E}`; `supported ⟺ S ≠ ∅`.
+- `groundedness = |triplets with S≠∅| / |total triplets|` (`mean` over triplet support atoms).
+- per-claim `grounded? = AND(triplet supported)`; corroboration doc-count = `|distinct docs in S|` (read by §3).
 - Wilson 95% CI over (supported, total).
 
 **Determinism:** the pre-filter (embedding cosine) is deterministic and **not**

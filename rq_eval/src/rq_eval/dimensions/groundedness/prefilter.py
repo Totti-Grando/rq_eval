@@ -1,32 +1,38 @@
 """§1 step 1 — similarity pre-filter [T1].
 
-For each triplet, pick the nearest context span (Titan embeddings; mock: hashed
-vectors) to hand the verifier a focused premise. Cheap, deterministic, and
-**not the score** — it only chooses which span to entail against.
+For each triplet, rank retrieved chunks by cosine (Titan embeddings; mock: hashed
+vectors) and keep the top-``groundedness_k`` to hand the verifier a focused set of
+premises. Cheap, deterministic, and **not the score** — it only *focuses* which
+chunks are entailed against (handing the verifier the whole corpus degrades it).
 """
 
 from __future__ import annotations
 
 import math
 
+from rq_eval.contracts import ContextChunk
 from rq_eval.providers.base import EmbeddingProvider, Vector
 
 
 class SimilarityPreFilter:
-    """[T1] Selects the context span most similar to a hypothesis."""
+    """[T1] Ranks context chunks by similarity to a hypothesis."""
 
     def __init__(self, embedding: EmbeddingProvider) -> None:
         """Inject the embedding provider."""
         self._embedding = embedding
 
-    def select(self, hypothesis: str, spans: list[str]) -> str:
-        """Return the span with the highest cosine to ``hypothesis`` ("" if none)."""
-        if not spans:
-            return ""
-        vectors = self._embedding.embed([hypothesis, *spans])
+    def select_k(self, hypothesis: str, chunks: list[ContextChunk], k: int) -> list[ContextChunk]:
+        """Return the top-``k`` chunks by cosine to ``hypothesis`` (order preserved by rank)."""
+        if not chunks:
+            return []
+        vectors = self._embedding.embed([hypothesis, *(c.text for c in chunks)])
         origin = vectors[0]
-        best_idx = max(range(len(spans)), key=lambda i: self._cosine(origin, vectors[i + 1]))
-        return spans[best_idx]
+        ranked = sorted(
+            range(len(chunks)),
+            key=lambda i: self._cosine(origin, vectors[i + 1]),
+            reverse=True,
+        )
+        return [chunks[i] for i in ranked[: max(1, k)]]
 
     @staticmethod
     def _cosine(a: Vector, b: Vector) -> float:

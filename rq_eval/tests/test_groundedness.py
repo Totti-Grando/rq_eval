@@ -68,11 +68,16 @@ def test_score_replays(tmp_path: Path) -> None:
 
 
 def test_prefilter_is_not_the_score(tmp_path: Path) -> None:
-    # the pre-filter only selects a premise; the score atoms are the entailments
+    # the pre-filter only focuses which chunks to entail; the score atoms are the entailments
     cfg = load_config()
     pf = SimilarityPreFilter(ProviderFactory(cfg).build().embedding)
+    chunks = [
+        ContextChunk(id="s1", text="Real Madrid won the final."),
+        ContextChunk(id="s2", text="Bananas are yellow."),
+    ]
+    top = pf.select_k("Real Madrid won final", chunks, 1)
+    assert [c.id for c in top] == ["s1"]
     spans = ["Real Madrid won the final.", "Bananas are yellow."]
-    assert pf.select("Real Madrid won final", spans) == "Real Madrid won the final."
     triplets = [_triplet("Real Madrid won final", "c1")]
     dim, store = _dim(tmp_path / "a.jsonl", triplets, GroundednessExport())
     result = dim.evaluate(EvalInput(

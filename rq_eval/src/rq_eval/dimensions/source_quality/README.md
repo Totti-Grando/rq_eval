@@ -16,12 +16,12 @@ what accuracy calls; `SourceQualityDimension` reports the category score.
 - `SourceQualityDimension` — per-source score, averaged across the answer's sources.
 
 **Calculations:**
-- properties: reachable [T1], dated&fresh [T1] (`date ≤ as_of_date`), authored [T1],
-  reputable-domain [T1] (reliability list), corroborated [T1] (`|distinct supporting
-  domains/authors| ≥ corroboration_min`), supports-claim [T2] (`entails == E`),
-  **disinterested [T1 COI rule]** (`¬(denylisted ∨ affiliation_conflict)` when
-  decisive; only the ambiguous remainder samples a residual judge at
-  `disinterest_sample_rate`).
+- properties: reachable [T1], dated&fresh [T1] (`date ≤ as_of_date`, metadata-only
+  unless `live_metadata_fetch`), authored [T1], reputable-domain [T1] (reliability
+  list), **corroborated [T1]** (`|distinct docs in S| ≥ corroboration_min`, read off
+  the §1 support set — **no NLI**), **supports-claim [T1]** (`S ≠ ∅`, imported from §1
+  — **no NLI**), **disinterested [T1 COI rule]** (`¬(denylisted ∨ affiliation_conflict)`
+  when decisive; ambiguous remainder samples a residual judge at `disinterest_sample_rate`).
 - `source_quality = mean(the seven property booleans)` per source.
 - `source-adequate? = source_quality ≥ adequacy_threshold`.
 - internal-corpus sources (no url/domain) satisfy the metadata checks by

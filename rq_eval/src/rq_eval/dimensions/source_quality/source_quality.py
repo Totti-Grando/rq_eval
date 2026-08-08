@@ -14,10 +14,10 @@ from typing import TYPE_CHECKING
 from rq_eval.audit.atom_logger import AtomLogger
 from rq_eval.contracts import AtomRecord, DimensionResult, EvalInput
 from rq_eval.dimensions.base import Dimension
+from rq_eval.dimensions.groundedness.export import GroundednessExport
 from rq_eval.dimensions.source_quality.coi import CoiRule
 from rq_eval.dimensions.source_quality.reliability_list import ReliabilityList
 from rq_eval.dimensions.source_quality.scorer import SourceQualityScorer
-from rq_eval.graders.grounding_grader import GroundingGrader
 from rq_eval.graders.judge_grader import JudgeGrader
 from rq_eval.providers.model_stamp import ModelStamp
 from rq_eval.scoring.bands import BandMapper
@@ -35,20 +35,23 @@ class SourceQualityDimension(Dimension):
 
     name = "source_quality"
 
-    def __init__(self, providers: Providers, cfg: Config, logger: AtomLogger) -> None:
-        """Assemble the property scorer from providers + config."""
+    def __init__(
+        self,
+        providers: Providers,
+        cfg: Config,
+        logger: AtomLogger,
+        grounded_export: GroundednessExport | None = None,
+    ) -> None:
+        """Assemble the property scorer; read supports/corroboration off the §1 support set."""
         self._logger = logger
         stamp = ModelStamp(cfg)
         seed = cfg.seeds.judge
-        grounding = GroundingGrader(
-            providers.grounding, logger, stamp.grounding(), "source_quality.supports", seed
-        )
         judge = JudgeGrader(
             providers.judge, logger, stamp.judge(), "source_quality.disinterest", seed
         )
         self._scorer = SourceQualityScorer(
-            cfg, logger, grounding, judge, ReliabilityList(cfg), CoiRule(cfg),
-            providers.resolver.resolve,
+            cfg, logger, grounded_export or GroundednessExport(), judge, ReliabilityList(cfg),
+            CoiRule(cfg), providers.resolver.resolve,
         )
         self._threshold = cfg.source_quality.adequacy_threshold
         self._registry = default_registry()

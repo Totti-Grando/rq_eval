@@ -17,6 +17,7 @@ from rq_eval.dimensions.accuracy.importance import ImportanceWeights
 from rq_eval.dimensions.accuracy.stubs import InferenceValidityStub
 from rq_eval.dimensions.groundedness.export import GroundednessExport
 from rq_eval.dimensions.responsiveness import ResponsivenessExport
+from rq_eval.dimensions.source_attribution.citations import resolve_explicit
 from rq_eval.graders.grounding_grader import GroundingGrader
 from rq_eval.graders.judge_grader import JudgeGrader
 from rq_eval.graders.t1 import T1Tools
@@ -124,7 +125,9 @@ class ClaimAccuracy:
         d = self._d
         id2chunk = {c.id: c for c in chunks}
         if claim.citation and claim.citation in id2chunk:
-            adequate = d.source_quality.adequate(id2chunk[claim.citation], claim.text, chunks)
+            adequate = d.source_quality.adequate(
+                id2chunk[claim.citation], claim.text, chunks, claim_id=claim.id
+            )
             evidence = "provider"
         else:  # no cited source -> Nexa-profile default
             adequate = d.source_adequate_default
@@ -136,16 +139,21 @@ class ClaimAccuracy:
         )
 
     def _attributed(self, claim: Claim, cited: dict[str, str], w: float) -> AtomRecord:
-        # claims with no citation are excluded from attribution (they route to the
-        # unsourced residual, counted once) -> pass here, don't penalize.
+        # resolve the cited set C (explicit ids in the source sentence + claim.citation),
+        # then attribution is the set-op C∩S over the imported support set (no NLI).
+        c = resolve_explicit(claim.source_sentence, set(cited))
         if claim.citation and claim.citation in cited:
-            res = self._d.attribution.attributed(claim.text, cited[claim.citation])
+            c.add(claim.citation)
+        if c:
+            res = self._d.attribution.attributed(claim.id, c)
             return self._d.logger.record(
-                subject=claim.id, role="attributed", question="attributed?", tier="T2",
+                subject=claim.id, role="attributed", question="attributed? (C∩S≠∅)", tier="T2",
                 verdict=res.attributed, weight=w,
-                evidence=f"label={res.label} conf={res.confidence:.4f}",
+                evidence=f"label={res.label} conf={res.confidence:.4f} C={sorted(c)}",
                 grader_id="accuracy.attributed", model=_CODE[0], model_version=_CODE[1],
             )
+        # claims with no citation are excluded from attribution (route to the
+        # unsourced residual, counted once) -> pass here, don't penalize.
         return self._d.logger.record(
             subject=claim.id, role="attributed", question="attributed?", tier="T2",
             verdict=True, weight=w, evidence="no citation (excluded)",

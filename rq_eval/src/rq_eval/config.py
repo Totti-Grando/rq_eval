@@ -121,6 +121,13 @@ class SourceAttributionConfig(BaseModel):
     precision_threshold: float = Field(ge=0.0, le=1.0)
 
 
+class GroundednessConfig(BaseModel):
+    """§1 knobs — the per-chunk support-set pass (Evidence §1)."""
+
+    model_config = _Strict
+    groundedness_k: int = Field(ge=1)  # top-k chunks entailed per triplet to build S
+
+
 class SourceQualityConfig(BaseModel):
     """§3 knobs — reliability list, adequacy threshold, corroboration, freshness."""
 
@@ -133,6 +140,7 @@ class SourceQualityConfig(BaseModel):
     affiliation_rule: bool
     disinterest_sample_rate: float = Field(ge=0.0, le=1.0)
     as_of_date: str
+    live_metadata_fetch: bool = False  # optional live date/author fetch (off = metadata-only)
 
 
 class RelevanceConfig(BaseModel):
@@ -231,6 +239,7 @@ class Config(BaseModel):
     models: ModelsConfig
     thresholds: ThresholdsConfig
     completeness: CompletenessConfig
+    groundedness: GroundednessConfig
     accuracy: AccuracyConfig
     task_success: TaskSuccessConfig
     hallucination: HallucinationConfig

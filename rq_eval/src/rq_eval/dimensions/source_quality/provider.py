@@ -21,8 +21,8 @@ class SourceQualityProviderImpl(SourceQualityProvider):
         self._scorer = scorer
 
     def adequate(
-        self, source: ContextChunk, claim: str, sources: list[ContextChunk]
+        self, source: ContextChunk, claim: str, sources: list[ContextChunk], claim_id: str = ""
     ) -> bool:
         """Score the source's properties and return score ≥ threshold."""
-        score, _atoms = self._scorer.score(source, claim, sources)
+        score, _atoms = self._scorer.score(source, claim, sources, claim_id=claim_id)
         return score >= self._threshold

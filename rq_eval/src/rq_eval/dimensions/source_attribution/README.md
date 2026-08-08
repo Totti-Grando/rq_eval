@@ -4,26 +4,28 @@
 citation recall/precision; **what accuracy imports as `attributed?`** (replaces
 the plain-grounding placeholder).
 
-**Purpose:** verify each cited claim is credited to the chunk that *actually*
-supports it (a faithfulness gap distinct from correctness). Precision-favoring;
-no-citation claims are excluded (they route to accuracy's unsourced residual).
+**Purpose:** verify each cited claim is credited to a source that *actually*
+supports it — a **set operation over the §1 support set `S`**, not a second NLI
+pass. Resolve the cited set `C` (explicit + implicit scope), then
+`attributed ⟺ C∩S≠∅`. Precision-favoring; no-citation claims are N/A (route out).
 
 **Classes:**
-- `AttributionLabeler` — [T2] map E/N/C → AttrScore 3-way (default) or CAQA 4-way.
+- `resolve_explicit` / `ScopePropagator` (`citations.py`) — [T1] cited-set resolution: explicit regex + implicit scope confirmed in `S`.
 - `AlceScorer` — [code] ALCE citation recall + precision.
-- `AttributionProviderImpl` — `attributed(claim, cited_chunk) -> {bool, confidence}` (accuracy import).
+- `AttributionProviderImpl` — `attributed(claim_id, cited) -> {bool, confidence}` = `C∩S≠∅ ∧ conformal` (accuracy import).
 - `AttributionExport` — per-claim attribution confidence (for the conformal layer §5).
-- `SourceAttributionDimension` — per-cited-claim verdict → ALCE precision (recall reported).
+- `SourceAttributionDimension` — set-op over `S` → ALCE precision (recall + `explicit`/`implicit-confirmed` split reported).
 
 **Calculations:**
-- per cited claim: entail the **cited** chunk vs the claim → Attributable iff label == E.
-- `citation_precision = |attributable citations| / |citations|` (score; `mean` over per-citation atoms).
-- `citation_recall = |statements whose citation set supports them| / |cited statements|`.
-- `attributed? = Attributable ∧ confidence ≥ precision_threshold` (E8 replaces the confidence gate with the conformal threshold).
-- Wilson 95% CI over (attributable, cited claims).
+- per cited claim: `attributed ⟺ C ∩ S ≠ ∅` (`S` = the claim's support chunk-ids from §1); no NLI here.
+- `citation_precision = |attributed| / |cited claims|` (score; `mean` over per-claim atoms).
+- `citation_recall = |claims with C∩S≠∅| / |cited claims|`.
+- diagnostics: `mis_cited = |C−S|` (cited-but-unsupported), `uncited_supported = |S−C|`.
+- `attributed? = (C∩S≠∅) ∧ confidence ≥ threshold` (E8 uses the conformal threshold); `attributed ⊆ grounded` by construction.
+- Wilson 95% CI over (attributed, cited claims).
 
-**Determinism:** the cited-chunk entailment is T2 (replays from the stamped
-label); ALCE recall/precision are pure code. No generation, no judge.
+**Determinism:** attribution is pure set-ops + code over §1's logged support set
+(atoms are **T1** now, no fresh NLI); ALCE recall/precision are pure code.
 
-**How to extend:** switch `source_attribution.labels: three|four`; tune
-`precision_threshold`; multi-citation statements are handled by `AlceScorer` as-is.
+**How to extend:** tune `precision_threshold`; adjust implicit-scope rules in
+`citations.py`; multi-citation statements are handled by the set-ops as-is.

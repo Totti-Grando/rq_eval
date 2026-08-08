@@ -181,20 +181,29 @@ class SourceQualityProvider(ABC):
     """
 
     @abstractmethod
-    def adequate(self, source: ContextChunk, claim: str, sources: list[ContextChunk]) -> bool:
-        """Return whether ``source`` is adequate for ``claim`` (score ≥ threshold)."""
+    def adequate(
+        self, source: ContextChunk, claim: str, sources: list[ContextChunk], claim_id: str = ""
+    ) -> bool:
+        """Return whether ``source`` is adequate for ``claim`` (score ≥ threshold).
+
+        ``claim_id`` (when known) selects that claim's support set ``S`` for the
+        imported supports/corroboration properties; empty → answer-wide ``S``.
+        """
 
 
 class AttributionProvider(ABC):
     """§4/§6 — is a claim attributed to the source that actually supports it.
 
-    accuracy imports this as its ``attributed?`` atom. Returns the boolean +
-    confidence (the confidence is what the conformal layer wraps).
+    A **set operation over the §1 support set ``S``** (no second NLI pass):
+    ``attributed ⟺ C ∩ S ≠ ∅`` where ``C`` is the claim's cited set. accuracy
+    imports this as its ``attributed?`` atom; the confidence feeds the conformal
+    layer. Since ``C ⊆ retrieved`` and ``S`` is over retrieved chunks,
+    ``attributed ⟹ S ≠ ∅`` (attributed ⊆ grounded).
     """
 
     @abstractmethod
-    def attributed(self, claim: str, cited_chunk: str) -> AttributionResult:
-        """Three-way cited-chunk↔claim verdict → attributed bool + confidence."""
+    def attributed(self, claim_id: str, cited: set[str]) -> AttributionResult:
+        """``C ∩ S`` for the claim → attributed bool + support confidence."""
 
 
 class NlpProvider(ABC):

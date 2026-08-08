@@ -93,9 +93,9 @@ class Evaluator:
         completeness = CompletenessDimension(p, cfg, log).evaluate(eval_input)
         task_success = TaskSuccessDimension(p, cfg, log).evaluate(eval_input)
         hallucination = HallucinationDimension(p, cfg, log, claims, grounded).evaluate(eval_input)
-        source_quality = SourceQualityDimension(p, cfg, log).evaluate(eval_input)
+        source_quality = SourceQualityDimension(p, cfg, log, grounded).evaluate(eval_input)
         source_attribution = SourceAttributionDimension(
-            p, cfg, log, claims, attribution
+            p, cfg, log, claims, attribution, grounded_export=grounded
         ).evaluate(eval_input)
         source_attribution = self._stamp_conformal(source_attribution, conformal)
         groundedness = self._stamp_conformal(groundedness, conformal)

@@ -63,22 +63,17 @@ class AccuracyDimension(Dimension):
         )
         attribution = AttributionProviderImpl(
             cfg,
-            GroundingGrader(
-                providers.grounding, logger, stamp.grounding(), "accuracy.attributed", seed
-            ),
+            grounded_export or GroundednessExport(),
             conformal_threshold=attribution_conformal_threshold,
         )
         residual = JudgeGrader(providers.judge, logger, stamp.judge(), "accuracy.residual", seed)
         weights = weights or ImportanceWeights(cfg.accuracy.importance_weighting)
-        sq_supports = GroundingGrader(
-            providers.grounding, logger, stamp.grounding(), "accuracy.sq_supports", seed
-        )
         sq_judge = JudgeGrader(
             providers.judge, logger, stamp.judge(), "accuracy.sq_disinterest", seed
         )
         sq_scorer = SourceQualityScorer(
-            cfg, logger, sq_supports, sq_judge, ReliabilityList(cfg), CoiRule(cfg),
-            providers.resolver.resolve,
+            cfg, logger, grounded_export or GroundednessExport(), sq_judge, ReliabilityList(cfg),
+            CoiRule(cfg), providers.resolver.resolve,
         )
         self._claim_accuracy = ClaimAccuracy(
             ClaimAccuracyDeps(

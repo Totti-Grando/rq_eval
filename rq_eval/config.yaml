@@ -40,6 +40,9 @@ completeness:
   reference_mode: generated  # generated (open-domain default) | archetype | templated (§2)
   recall_sample_path: config/completeness_recall_sample.jsonl  # human should-contain error bar ("" disables)
 
+groundedness:               # §1 per-chunk support-set pass (Evidence §1)
+  groundedness_k: 3          # top-k retrieved chunks entailed per triplet to build S
+
 accuracy:
   importance_weighting: true # weight claims by vital/okay from completeness units
   numeric_tolerance: 0.0     # relative tolerance for numeric exact-match (0 == strict)
@@ -65,6 +68,7 @@ source_quality:              # §3 the bridge to world factuality
   affiliation_rule: true     # flag source conflicted when its org == the claim's subject entity
   disinterest_sample_rate: 0.0    # ambiguous-only judge sample rate (0 -> assume true)
   as_of_date: "2026-07-31"   # point-in-time window; sources must not be dated after this
+  live_metadata_fetch: false # optional live date/author fetch; off = retrieval-metadata only
 
 relevance:
   method: B                  # A | B | both  (B == deterministic-first default)
