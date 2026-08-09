@@ -86,17 +86,19 @@ class Evaluator:
         grounded = GroundednessExport()
         attribution = AttributionExport()
 
-        relevance = RelevanceDimension(p, cfg, log, claims, responsive).evaluate(eval_input)
+        # groundedness first (builds the support set S), then the one shared claim
+        # graph (§0.3), which relevance (reachability) and accuracy (derivation) both
+        # read as projections. Edges are detected only when a Layer-2 flag reads them.
         groundedness = GroundednessDimension(p, cfg, log, triplets, grounded).evaluate(eval_input)
-        # §0.3: the one shared claim graph, built once after S is known. Edges are
-        # detected only when a Layer-2 flag will read them (accuracy DAG-rescue /
-        # relevance tree); otherwise the graph stays a typed-node scaffold.
         graph = ClaimGraphBuilder(T1Tools(), p.nlp, grounded).build(claims)
         if cfg.accuracy.dag_rescue_enabled or cfg.relevance.tree_enabled:
             EdgeDetector(
                 p.grounding, T1Tools(), cfg.graph.edge_tau, cfg.graph.topical_min,
                 cfg.graph.numeric_tolerance,
             ).detect(claims, graph)
+        relevance = RelevanceDimension(
+            p, cfg, log, claims, responsive, graph=graph
+        ).evaluate(eval_input)
         conformal_gate = None if conformal.abstained else conformal.threshold
         accuracy = AccuracyDimension(
             p, cfg, log, claims, grounded_export=grounded,

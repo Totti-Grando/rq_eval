@@ -5,7 +5,7 @@ from __future__ import annotations
 from rq_eval.config import load_config
 from rq_eval.contracts import Claim
 from rq_eval.dimensions.relevance.anchors import AnchorSelector
-from rq_eval.dimensions.relevance.edges import Edge, EdgeBuilder
+from rq_eval.dimensions.relevance.edges import Edge
 from rq_eval.dimensions.relevance.orphans import (
     BACKGROUND,
     OFF_TOPIC,
@@ -13,10 +13,8 @@ from rq_eval.dimensions.relevance.orphans import (
     OrphanResolver,
 )
 from rq_eval.dimensions.relevance.tree import SupportTree
-from rq_eval.graders.t1 import T1Tools
 from rq_eval.providers.base import EntailmentResult
 from rq_eval.providers.consistency import RouteReceipt, StubConsistencyProvider
-from rq_eval.providers.factory import ProviderFactory
 
 
 def _claim(cid: str, text: str) -> Claim:
@@ -26,28 +24,8 @@ def _claim(cid: str, text: str) -> Claim:
     )
 
 
-def _grounding() -> object:
-    return ProviderFactory(load_config()).build().grounding
-
-
-def test_marker_without_entailment_is_not_an_edge() -> None:
-    """A stated 'because' link whose premise doesn't entail the conclusion → no edge."""
-    anchor = _claim("c1", "GDP fell three percent")
-    asserted = _claim("c2", "Air quality worsened because of weak exports")
-    builder = EdgeBuilder(_grounding(), T1Tools(), edge_tau=0.5)  # type: ignore[arg-type]
-    edges = builder.build([anchor, asserted])
-    # the marker is present (candidate prior) but it never becomes a confirmed edge
-    assert T1Tools().has_discourse_marker(asserted.text)
-    assert not any(e.src == "c2" and e.dst == "c1" for e in edges)
-
-
-def test_entailment_confirms_support_edge() -> None:
-    """A premise whose tokens cover the conclusion is a confirmed support edge."""
-    premise = _claim("c1", "GDP fell three percent in 2024 due to weak exports")
-    conclusion = _claim("c2", "GDP fell")
-    builder = EdgeBuilder(_grounding(), T1Tools(), edge_tau=0.5)  # type: ignore[arg-type]
-    edges = builder.build([premise, conclusion])
-    assert any(e.src == "c1" and e.dst == "c2" for e in edges)
+# NOTE: edge *construction* moved to the shared graph (pipeline/edge_detection.py,
+# tested in test_edge_detection.py); relevance only reads those edges (G6).
 
 
 def test_centrality_promotes_low_seed_claim_to_anchor() -> None:

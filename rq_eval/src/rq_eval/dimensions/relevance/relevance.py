@@ -1,19 +1,15 @@
-"""§3 relevance — anchor-and-support tree + orphan resolution (build first; §1 imports it).
+"""§3 relevance — direct core + scaffolded support-tree (build first; §1 imports it).
 
-Relevance is fit to the *question*, evaluated as a support tree over the whole
-answer (argument-mining structure), not a blunt per-claim filter:
-
-1. **anchors** — claims addressing the question head-on (on-ask seed, expanded by
-   graph centrality, conformal-bounded recall);
-2. **edges** — entailment-confirmed premise→conclusion support links;
-3. **tree** — iterative reachability from anchors, depth = relevance grade,
-   depth-decayed weight, bounded by ``max_hops``;
-4. **orphans** — claims with no path to an anchor are split into off-topic
-   (penalized), stranded/veracity (kept relevant, contradictions routed), and
-   independent-background (kept relevant).
-
-The per-claim ``responsive`` atom (on_topic ∧ on_ask) is still exported for
-accuracy. A proper decline to an unanswerable question scores relevant.
+Two layers, de-risked. **Core (Layer 1, the built score):** the per-claim direct
+on-topic + on-ask check (fixed NLI + lexical, DIVER-QA) — a mean with an off-ask
+cap and abstention. **Extension (Layer 2, `relevance.tree_enabled`, default off):**
+a support-tree over the answer that rescues indirectly-relevant claims — but it
+reads the edges of the **one shared `ClaimGraph`** (§0.3), it does **not** build
+its own. Anchors (on-ask seed + centrality + conformal recall) → reachability over
+the shared support edges → orphan resolution (off-topic penalized; stranded /
+veracity kept + routed to the ConsistencyProvider; background kept). When off,
+relevance = the direct core. The per-claim ``responsive`` atom is exported for
+accuracy either way.
 """
 
 from __future__ import annotations
@@ -26,7 +22,7 @@ from rq_eval.contracts import AtomRecord, Claim, DimensionResult, EvalInput
 from rq_eval.dimensions.base import Dimension
 from rq_eval.dimensions.relevance.anchors import AnchorSelector
 from rq_eval.dimensions.relevance.claim_responsiveness import ClaimResponsiveness, ClaimSignals
-from rq_eval.dimensions.relevance.edges import EdgeBuilder
+from rq_eval.dimensions.relevance.edges import Edge
 from rq_eval.dimensions.relevance.method_a import MethodAReverseQuestions
 from rq_eval.dimensions.relevance.method_b import MethodBGuardrail
 from rq_eval.dimensions.relevance.orphans import OFF_TOPIC, STRANDED_CONTRADICTION, OrphanResolver
@@ -36,6 +32,7 @@ from rq_eval.graders.grounding_grader import GroundingGrader
 from rq_eval.graders.judge_grader import JudgeGrader
 from rq_eval.graders.relevance_grader import RelevanceGrader
 from rq_eval.graders.t1 import T1Tools
+from rq_eval.pipeline.claim_graph import ClaimGraph
 from rq_eval.providers.model_stamp import ModelStamp
 from rq_eval.scoring.bands import BandMapper
 from rq_eval.scoring.conformal import ConformalCalibrator
@@ -48,7 +45,8 @@ if TYPE_CHECKING:
 
 _DECLINE = "[[overlap:0.4]] cannot answer decline refuse unable insufficient information"
 _UNANSWERABLE = "[[deny]] Is this question impossible to answer from any available source?"
-_FORMULA = "relevance_tree_capped_mean"
+_CORE_FORMULA = "relevance_capped_mean"  # Layer 1 direct core (default)
+_TREE_FORMULA = "relevance_tree_capped_mean"  # Layer 2 depth-graded (tree_enabled)
 _CODE = ("code", "rq_eval")
 
 
@@ -64,14 +62,17 @@ class RelevanceDimension(Dimension):
         logger: AtomLogger,
         claims: list[Claim],
         export: ResponsivenessExport,
+        graph: ClaimGraph | None = None,
     ) -> None:
-        """Assemble graders, the graph pipeline, and methods from providers/config."""
+        """Assemble graders + the direct core; the tree layer reads the shared graph."""
         self._cfg = cfg
         self._logger = logger
         self._claims = claims
         self._export = export
         self._method = cfg.relevance.method
         self._cap = cfg.relevance.off_ask_cap
+        self._tree_enabled = cfg.relevance.tree_enabled
+        self._graph = graph
         stamp = ModelStamp(cfg)
         seed = cfg.seeds.judge
         self._seed = seed
@@ -96,8 +97,7 @@ class RelevanceDimension(Dimension):
             self._on_topic, self._on_ask_nli, self._t1, logger, stamp.relevance(), seed,
             self._lex_min,
         )
-        # anchor-and-support tree pipeline (§3)
-        self._edges = EdgeBuilder(providers.grounding, self._t1, cfg.relevance.edge_tau)
+        # Layer-2 tree pipeline (§3) — reads the shared graph's edges, builds none
         self._anchors = AnchorSelector(
             ConformalCalibrator(cfg.relevance.anchor_alpha, cfg.conformal.min_calibration_n),
             cfg.relevance.anchor_centrality_min,
@@ -118,38 +118,51 @@ class RelevanceDimension(Dimension):
         q, a = eval_input.question, eval_input.answer
         inputs_hash = self._hash(q, a)
 
+        formula = _TREE_FORMULA if self._tree_active() else _CORE_FORMULA
         abstain = self._maybe_abstain(q, a)
         if abstain is not None:
-            score = self._registry.compute(_FORMULA, [abstain])
+            score = self._registry.compute(formula, [abstain])
             return DimensionResult(
                 dimension=self.name, score=score, band=self._bands.band(score),
                 ci_low=0.0, ci_high=1.0, n=len(self._claims), inputs_hash=inputs_hash,
-                atom_ids=[abstain.id], formula_id=_FORMULA, abstained=True,
+                atom_ids=[abstain.id], formula_id=formula, abstained=True,
             )
 
         extra = self._answer_level_scores(q, a)
         answer_ask = self._answer_on_ask(q, a)
         signals = self._responsiveness.compute(q, self._claims, self._export)
-        graded = self._grade_claims(q, signals, extra)
-
         responsive_atoms = [s.responsive for s in signals]
-        atoms: list[AtomRecord] = [answer_ask, *responsive_atoms, *graded]
-        score = self._registry.compute(_FORMULA, [answer_ask, *graded])
 
-        num_relevant = sum(1 for g in graded if g.verdict)
+        if self._tree_active():  # Layer 2: depth-graded over the shared graph
+            graded = self._grade_claims(q, signals, extra)
+            atoms: list[AtomRecord] = [answer_ask, *responsive_atoms, *graded]
+            score = self._registry.compute(_TREE_FORMULA, [answer_ask, *graded])
+            num_relevant = sum(1 for g in graded if g.verdict)
+        else:  # Layer 1 direct core: mean of responsive with off-ask cap
+            atoms = [answer_ask, *responsive_atoms]
+            score = self._registry.compute(_CORE_FORMULA, atoms)
+            num_relevant = sum(1 for s in responsive_atoms if s.verdict)
+
         low, high = WilsonInterval().interval(num_relevant, len(self._claims))
         return DimensionResult(
             dimension=self.name, score=score, band=self._bands.band(score),
             ci_low=low, ci_high=high, n=len(self._claims), inputs_hash=inputs_hash,
-            atom_ids=[x.id for x in atoms], formula_id=_FORMULA, abstained=False, extra=extra,
+            atom_ids=[x.id for x in atoms], formula_id=formula, abstained=False, extra=extra,
         )
+
+    def _tree_active(self) -> bool:
+        """The scaffolded tree runs only when enabled AND the shared graph is present."""
+        return self._tree_enabled and self._graph is not None
 
     def _grade_claims(
         self, question: str, signals: list[ClaimSignals], extra: dict[str, float]
     ) -> list[AtomRecord]:
-        """Build the tree, resolve orphans, and log one graded ``claim_relevance`` atom/claim."""
+        """Resolve the tree over the SHARED graph's edges + orphans; log one atom/claim.
+
+        Relevance **reads** the shared graph's support edges — it constructs none.
+        """
         by_id = {s.claim.id: s for s in signals}
-        edges = self._edges.build(self._claims)
+        edges = self._shared_edges()
         seed_ids = {s.claim.id for s in signals if s.on_ask}
         # anchor confidence = the on-ask lexical coverage of the question's terms
         confidences = {
@@ -167,6 +180,16 @@ class RelevanceDimension(Dimension):
         for s in signals:
             graded.append(self._grade_one(s, depth, anchors))
         return graded
+
+    def _shared_edges(self) -> list[Edge]:
+        """Read the shared graph's confirmed support edges (relevance builds none)."""
+        if self._graph is None:
+            return []
+        return [
+            Edge(src=src, dst=dst, raw_score=1.0, marker=False)
+            for src, dst, etype in self._graph.edges()
+            if etype == "supports"
+        ]
 
     def _grade_one(
         self, s: ClaimSignals, depth: dict[str, int], anchors: list[Claim]
