@@ -182,6 +182,10 @@ For a **fully live** run set: `providers.mode: live`, `models.nli: bedrock`
 
 ## 7. Migration runbook — taking it live on the AWS machine
 
+> **For the full-capacity migration (native 3-way NLI, both Layer-2 flags, the
+> edge-recall gate, real oracles), see `MIGRATION.md` — the authoritative,
+> G-series-current runbook.** The steps below are the quick version.
+
 Target machine assumptions: **Python 3.11** (spaCy/coreferee/fairseq wheels),
 AWS credentials with Bedrock access, network egress.
 

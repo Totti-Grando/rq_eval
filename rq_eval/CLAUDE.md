@@ -10,7 +10,7 @@ resolution, relevance direct-core + scaffolded tree, parse-first extraction/trip
 ~175 tests green, `mypy --strict` + `ruff` clean, runs **offline** in `providers.mode: mock`.
 
 ## Read in this order
-1. `GUIDE.md` — orientation, repo map, mock→live table, AWS migration runbook, **known deviations (§9)**.
+1. `GUIDE.md` — orientation, repo map, mock→live table, **known deviations (§9)**; `MIGRATION.md` — the full-capacity live (AWS) runbook.
 2. `ARCHITECTURE.md` — layer diagram + design-section → folder table.
 3. `config.yaml` — every knob/default (the single source of truth).
 4. Specs (canonical; **design wins over build orders**): `../response-quality-design.md`, `../evidence-truthfulness-design.md`, `../build-order-addendum-style-docs.md`.
