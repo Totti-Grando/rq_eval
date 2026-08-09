@@ -30,9 +30,12 @@ atoms + a formula id with no model call.
 ## Data flow of one evaluation (end-to-end)
 
 1. `runner.evaluate(EvalInput)` builds providers via `ProviderFactory(config)`.
-2. `pipeline/` (§0) extracts cached, decontextualized, verifiable `Claim`s.
-3. `dimensions/relevance` (§3) runs first and **exports per-claim responsive
-   atoms**; `dimensions/accuracy` (§1) imports them (never recomputes).
+2. `pipeline/` (§0) extracts cached, decontextualized, verifiable `Claim`s (parse-first).
+3. `dimensions/groundedness` (§1) runs first and builds the support set `S`; the
+   **one shared `ClaimGraph`** (§0.3) is built next; `dimensions/relevance` (§3)
+   and `dimensions/accuracy` (§1) then read it as disjoint projections
+   (reachability / derivation). Accuracy is **truth-only** — it no longer imports
+   responsiveness (relevance owns that).
 4. Each dimension emits booleans → `AtomRecord`s appended to `audit/` and
    feeds `scoring/` (pure functions) to compute a `DimensionResult`.
 5. `runner` renders a report; the `audit/` replay verifier recomputes every
@@ -53,6 +56,28 @@ Two provider interfaces enforce "explain, never override" structurally:
   `DimensionResult`s + `AtomRecord`s, returns the user-facing summary. It has no
   `verdict`, writes no atom, and no `formula_id` references it (test-enforced), so
   the explanation layer sits strictly downstream of scoring.
+
+### Claim-graph & support-set update (G1–G9): one graph, two-layer scoring
+
+- **Support-set model (Evidence §1/§3/§4).** Groundedness runs one **per-chunk
+  pass** and exports the support set `S` (chunk-ids that entail each triplet,
+  grouped by document). Source_quality reads `supports` (`S≠∅`) and corroboration
+  (`|distinct docs in S|`) off it; source_attribution is a **set operation**
+  `attributed ⟺ C∩S≠∅` over the cited set `C`. One NLI pass, three readers;
+  `attributed ⊆ grounded` by construction. `GroundednessExport` is the shared `S`.
+- **One shared `ClaimGraph` (§0.3).** `pipeline/claim_graph.py` builds it once
+  (typed nodes: independent / inference-dependent / indexical-bound);
+  `pipeline/edge_detection.py` adds entailment-confirmed support edges (backward
+  premise-BFS, acyclic). **Two projections read it, neither rebuilds it:**
+  accuracy reads edges as **derivation** (reaches a true axiom?), relevance reads
+  the same edges as **reachability** (reaches a question anchor?). `validation/`
+  reports the edge-detection recall that gates the Layer-2 flags.
+- **Two-layer, de-risked scoring.** Accuracy Layer 1 (`grounded ∧ source-adequate
+  ∧ attributed`, per node, truth-only — **responsiveness removed**) and relevance's
+  direct core are the protected floor. Accuracy Layer 2 (DAG derivation-rescue,
+  `accuracy.dag_rescue_enabled`) and relevance Layer 2 (support-tree,
+  `relevance.tree_enabled`) are additive and **off by default**, gated on measured
+  edge-recall. `pipeline/graph_viz.py` renders the resolved graph as a diagnostic.
 
 ### Design-sync update (U1–U7): parse-first extraction, relevance tree, completeness modes
 

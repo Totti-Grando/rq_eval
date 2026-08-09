@@ -4,10 +4,10 @@ Certification-grade LLM answer evaluator. **Two categories, eight dimensions:**
 Response Quality (accuracy, completeness, relevance, task_success) + Evidence &
 Truthfulness (groundedness, hallucination, source_quality, source_attribution).
 
-Status: fully implemented (B1–B10 + E1–E9) and design-synced (U1–U7: deterministic
-parse-first extraction, relevance anchor-tree + orphan resolution, completeness
-reference modes, parse-first triplets, forward-declared `ConsistencyProvider`).
-~145 tests green, `mypy --strict` + `ruff` clean, runs **offline** in `providers.mode: mock`.
+Status: fully implemented (B1–B10 + E1–E9), design-synced (U1–U7), and claim-graph
+synced (G1–G9: support-set model, one shared `ClaimGraph`, two-layer accuracy DAG
+resolution, relevance direct-core + scaffolded tree, parse-first extraction/triplets).
+~175 tests green, `mypy --strict` + `ruff` clean, runs **offline** in `providers.mode: mock`.
 
 ## Read in this order
 1. `GUIDE.md` — orientation, repo map, mock→live table, AWS migration runbook, **known deviations (§9)**.
@@ -28,9 +28,12 @@ reference modes, parse-first triplets, forward-declared `ConsistencyProvider`).
 - `providers.mode: mock` = deterministic **lexical** stand-ins (token overlap/hash/regex) so everything runs with no network. Going live is a **config flip** (`mode: live`, `models.nli: bedrock`, `hallucination.resolver: live`, real ids/creds) — no code change. See `GUIDE.md` §6.
 - Tiers: **T1** = pure code · **T2** = fixed model (NLI/grounding/embeddings), thresholded in code · **T3-gen** = pinned frozen text (units/outcomes/reverse-questions; the residual triplet + optional realizer) · **T3** = judge (the only non-replayable step, cornered into narrow residues).
 - **Claim decomposition is deterministic parsing** (§0.2), not generation: `pipeline/` uses `NlpProvider.parse_clauses` + `T1Tools` (no judge/generator on the primary path); the optional surface-realizer is off by default. Triplets are parse-first too.
-- **Relevance is an anchor-and-support tree** (§3): edges (entailment-confirmed) → anchors (on-ask + centrality + conformal) → tree (depth-graded) → orphans (off-topic / stranded-veracity / background). Stranded contradictions route to the forward-declared `ConsistencyProvider` stub. The `responsive` atom is still exported to accuracy.
+- **Relevance = direct core (default) + scaffolded tree (`tree_enabled`, off)** (§3): the built score is per-claim on-topic ∧ on-ask; the anchor-tree (reading the shared graph, orphan resolution, `ConsistencyProvider` routing) is the additive Layer 2. The `responsive` atom is still computed/exported for reuse.
 - **Completeness has three reference modes** (§2): `generated` (default), `archetype`, `templated`; the mode is stamped as `DimensionResult.assurance_mode` and a human recall-sample `recall_miss_rate` is reported.
-- Accuracy *imports* grounded (§1-E&T), source-adequate (§3), attributed (§4), responsive (§3-RQ) — it never recomputes them. Run order lives in `runner.py::Evaluator.evaluate`.
+- **Support-set model** (Evidence §1/§3/§4): groundedness's one per-chunk pass builds + exports `S`; source_quality (supports/corroboration) and source_attribution (`C∩S`) read it with **no new NLI**; `attributed ⊆ grounded`.
+- **One shared `ClaimGraph`** (§0.3, `pipeline/claim_graph.py`): built once, read as disjoint projections — accuracy=derivation, relevance=reachability; relevance/accuracy add no edges of their own. `pipeline/edge_detection.py` builds edges; `validation/` reports the recall that gates the Layer-2 flags.
+- **Two-layer scoring, protected floor**: accuracy Layer 1 (truth-only axiom, **responsiveness removed**) + relevance direct core are the default; accuracy `dag_rescue_enabled` and relevance `tree_enabled` are additive, **off by default**.
+- Accuracy *imports* grounded (§1-E&T), source-adequate (§3), attributed (§4) as its truth axiom — it never recomputes them, and it does **not** import responsiveness (truth ≠ relevance). Run order lives in `runner.py::Evaluator.evaluate`.
 
 ## Dev loop (this machine, Python 3.14, mock)
 ```bash

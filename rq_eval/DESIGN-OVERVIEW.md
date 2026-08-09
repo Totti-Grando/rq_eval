@@ -33,10 +33,12 @@ pinned generation · **T3** judge · **oracle** human-maintained config.
 > requirements files during R6; the implementation uses stdlib `math` and a
 > direct Method-A implementation instead.
 
-### The one verifier, three premises (design §6)
-`GroundingProvider.entails(premise, hypothesis) -> {label∈E/N/C, raw_score}` is
-the single NLI used by groundedness (premise=context span), source_attribution
-(premise=cited chunk), and source_quality's "supports" (premise=source). Backends:
+### The one verifier, one pass (design §1/§6)
+`GroundingProvider.entails(premise, hypothesis) -> {label∈E/N/C, raw_score}` runs
+once per kept chunk in **groundedness** to build the support set `S`;
+**source_quality** (supports/corroboration) and **source_attribution** (`C∩S`)
+then read `S` — no further NLI. Edge detection (§0.3) reuses the same verifier to
+confirm support edges. Backends:
 
 | Backend | Tool | label rule | `models.nli` |
 |---|---|---|---|
@@ -62,7 +64,8 @@ the single NLI used by groundedness (premise=context span), source_attribution
 |---|---|
 | `mean` | `Σ verdict / n` |
 | `weighted_mean` | `Σ verdict·w / Σ w` |
-| `conjunction_weighted_mean` | group atoms by subject; `correct = AND(verdicts)`; `Σ correct·w / Σ w` (w per subject) |
+| `conjunction_weighted_mean` | (legacy) group atoms by subject; `correct = AND(verdicts)`; `Σ correct·w / Σ w` |
+| `dag_resolution` | §1 accuracy: `successful nodes / total`, per node; a node is a passing `axiom` OR (Layer 2) a `derived` rescue |
 | `relevance_capped_mean` | (legacy) `abstain_relevant→1.0`; else `base=mean(responsive)`; if `on_ask_answer=False` → `min(base, cap)` |
 | `relevance_tree_capped_mean` | `abstain_relevant→1.0`; else `base=mean(claim_relevance.weight)` (code-graded: anchor/bg/stranded=1.0, in-tree depth d=`depth_decay**d`, off-topic=0.0); if `on_ask_answer=False` → `min(base, cap)` |
 | `task_success_weighted` | `impossible→1.0`; else `Σ outcome·w / Σ w` |
@@ -90,19 +93,21 @@ filter (`T1Tools.is_verifiable`) `[T1]` → decompose into content-unit clauses
 (off by default, droppable per the realizer-impact test). Pinned by `extractor_version`;
 stability measured.
 
-### §1 accuracy  — `Σ correct·w / Σ w`
-Inputs: answer claims + retrieved context + citations. Per claim, four booleans (all **imported**), AND-ed, then weighted-mean.
+### §1 accuracy  — `successful nodes / total` (two-layer DAG resolution)
+Inputs: answer claims + retrieved context + citations. **Per node**, truth-only,
+counted once. Layer 1 is the protected floor; Layer 2 is additive + flag-gated.
 
 | Step | Tier | Tool (mock → live) | Computation |
 |---|---|---|---|
-| grounded? | T2 | entails (overlap → Guardrail/fairseq) | imported from groundedness: claim's triplets all `E` |
-| + numeric edge | T1 | `T1Tools` (`re`) | if claim has a number: `|na−nb| ≤ tolerance·max(|na|,|nb|)` vs source (NOT NLI) |
-| source-adequate? | T1/T2/T3 | `SourceQualityProvider` | `source_quality ≥ adequacy_threshold` (§3) |
-| attributed? | T2 | entails on cited chunk + conformal | `Attributable ∧ confidence ≥ threshold` (§4/§5) |
-| responsive? | T1+T2 | relevance (NLI+lexical, no judge) | imported atom from §3 |
-| unsourced residual | T3 | judge (Bedrock Claude) | when no context: truth-judge boolean |
-| **score** | code | `conjunction_weighted_mean` | `claim_correct = AND(the four)`; `accuracy = Σ correct·w / Σ w`; `w` = importance weight (toggle) |
-| CI / band | code | Wilson / BandMapper | Wilson over (correct claims, #claims) |
+| axiom: grounded? | T2 | entails (overlap → Guardrail/fairseq) | imported from groundedness: claim supported (`S ≠ ∅`) |
+| + numeric edge | T1 | `T1Tools` (`re`) | numeric claim's figure matches **any** source number (NOT NLI) |
+| axiom: source-adequate? | T1 | `SourceQualityProvider` | `source_quality ≥ adequacy_threshold` (supports/corrob. off `S`, §3) |
+| axiom: attributed? | T2/code | set-op `C∩S` + conformal | `C∩S≠∅ ∧ confidence ≥ threshold` (§4/§5) |
+| Layer 1 node = AND(3) | code | — | `axiom = grounded ∧ source-adequate ∧ attributed` (**no responsive**) |
+| unsourced residual | T3 | judge (Bedrock Claude) | bare claim (no source): truth-judge boolean |
+| Layer 2 rescue (flag) | code + T2 edges | shared `ClaimGraph` | bare node whose confirmed parents all resolve true → `derived` success |
+| **score** | code | `dag_resolution` | `successful / total`; axiom-to-derived ratio reported |
+| CI / band | code | Wilson / BandMapper | Wilson over (successful, #claims) |
 
 ### §2 completeness — strict vital recall (two-tier, mode-based reference)
 Inputs: question + sources. The Tier-1 reference is **mode-selected** and the mode
@@ -165,13 +170,13 @@ by `T1Tools.parse_triplet` over `NlpProvider.parse_clauses` `[T1]`; the generato
 can't cleanly triple (nested/abstractive predicates) `[T3-gen]`. Carries claim id +
 citation + source pointer. Pinned (`triplet_extractor_version`); stability = `|∩ ids| / |∪ ids|`.
 
-### §1 groundedness — `|E| / |total triplets|`
+### §1 groundedness — `|supported| / |total triplets|` (per-chunk support pass)
 | Step | Tier | Tool | Computation |
 |---|---|---|---|
-| similarity pre-filter | T1 | embeddings cosine | pick nearest context span per triplet (premise); **not** the score |
-| three-way entailment | T2 | entails (overlap → Guardrail/fairseq) | per triplet → E/N/C |
-| **score** | code | `mean` | `groundedness = |E-labeled triplets| / |total|` |
-| export | code | — | per-claim `grounded = AND(triplet == E)`; per-triplet `raw_score` → conformal |
+| similarity pre-filter | T1 | embeddings cosine | keep top-`groundedness_k` chunks per triplet (premises); **not** the score |
+| per-chunk entailment → S | T2 | entails (overlap → Guardrail/fairseq) | `S = {chunk : E}` per triplet; `supported ⟺ S ≠ ∅` |
+| **score** | code | `mean` | `groundedness = |triplets with S≠∅| / |total|` |
+| export **S** | code | — | per-claim `S` (chunk-ids + distinct docs) → §3/§4; per-claim `grounded`; `raw_score` → conformal |
 
 ### §2 hallucination — unsupported rate + fabrication gate
 | Step | Tier | Tool | Computation |
@@ -190,18 +195,19 @@ Per source (internal-corpus chunks with no url/domain pass the metadata checks b
 | dated & fresh | T1 | `str`/`date` | `date` present ∧ `date ≤ as_of_date` |
 | authored | T1 | code | `author` present |
 | reputable domain | T1 | `reliability_list.yaml` | deny→False; allow→True; unknown (allow-list set)→False |
-| corroborated | T1 | entails + count | `|distinct domain/author among sources that entail the claim| ≥ corroboration_min` |
-| supports the claim | T2 | entails | `entails(source, claim) == E` |
+| corroborated | T1 (from `S`) | count over §1 support set | `|distinct docs in S| ≥ corroboration_min` (**no NLI**) |
+| supports the claim | T1 (from `S`) | §1 support set | `S ≠ ∅` (imported, **no NLI**) |
 | disinterested | T1 (rule) · T3 (residual) | `CoiRule` + sampled judge | `¬(denylisted ∨ affiliation_conflict)` where decisive; only the ambiguous remainder samples a judge at `disinterest_sample_rate` |
 | **score / adequate** | code | `mean` | `source_quality = mean(properties)`; `source-adequate? = score ≥ adequacy_threshold` |
 
-### §4 source_attribution — ALCE citation precision
+### §4 source_attribution — ALCE citation precision (set-op over `S`, no new NLI)
 | Step | Tier | Tool | Computation |
 |---|---|---|---|
-| per-citation support | T2 | entails on **cited** chunk | label → AttrScore 3-way (`labels: three`) or CAQA 4-way (`four`); Attributable ⟺ `E` |
-| ALCE recall + precision | code | `alce.py` | `precision = |attributable citations| / |citations|`; `recall = |statements whose cite set supports them| / |cited statements|` |
-| no-citation handling | code | — | claims without a citation excluded here (routed to accuracy's unsourced residual; no double-count) |
-| **score / attributed** | code | `mean` + conformal | `source_attribution = citation precision`; `attributed? = Attributable ∧ (confidence ≥ conformal threshold)` |
+| resolve cited set `C` | T1 | `citations.py` regex + scope | explicit ids + implicit scope confirmed in `S`; tag `explicit`/`implicit-confirmed` |
+| attribution = `C∩S` | code | set-op over §1's `S` | `attributed ⟺ C∩S ≠ ∅` (no NLI); diagnostics `C−S` (mis-cite), `S−C` (uncited-supported) |
+| ALCE recall + precision | code | `alce.py` | `precision = |attributed| / |cited claims|`; `recall = |claims with C∩S≠∅| / |cited|` |
+| no-citation handling | code | — | non-source-referencing claims are N/A here (routed to accuracy's residual; no double-count) |
+| **score / attributed** | code | `mean` + conformal | `source_attribution = precision`; `attributed? = (C∩S≠∅) ∧ (confidence ≥ conformal threshold)`; `attributed ⊆ grounded` |
 
 ### §5 conformal factuality — `scoring/conformal.py`
 | Step | Tier | Tool | Computation |

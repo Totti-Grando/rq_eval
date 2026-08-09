@@ -259,6 +259,25 @@ reproducibility fence.
 
 ## 9. Known deviations, stubs, and optional pieces (be aware)
 
+- **Support-set model** (Evidence §1/§3/§4, G1): groundedness's one per-chunk pass
+  builds + exports the support set `S`; source_quality (supports/corroboration) and
+  source_attribution (`C∩S`) read it with **no new NLI**. `attributed ⊆ grounded`
+  by construction. Attribution resolves a cited *set* `C` (explicit regex + implicit
+  scope confirmed in `S`).
+- **One shared `ClaimGraph`** (§0.3, G3): built once (`pipeline/claim_graph.py`),
+  read as disjoint projections — accuracy=derivation, relevance=reachability;
+  neither rebuilds it or adds edges. Edges come from `pipeline/edge_detection.py`;
+  `validation/edge_recall.py` reports the recall that gates the Layer-2 flags.
+  Uses **networkx** (a real runtime dep, per the design); mypy runs at
+  `python_version = 3.12` so numpy's transitively-pulled stubs parse (ruff still
+  enforces py311 on our source).
+- **Two-layer scoring, off by default** (G2/G5/G6): accuracy Layer 1 (truth-only
+  axiom, **responsiveness removed** — a true off-topic claim now counts accurate)
+  and relevance's direct core are the protected floor. `accuracy.dag_rescue_enabled`
+  (DAG derivation-rescue) and `relevance.tree_enabled` (support-tree over the shared
+  graph) are additive and **off until edge-recall clears the bar**. Mock lexical NLI
+  can't build rich semantic edges, so the Layer-2 mechanics are covered by focused
+  tests; live NLI restores them with no formula change.
 - **Claim decomposition is deterministic parsing** (§0.2, U1): the mock uses a
   clause splitter (`NlpProvider.parse_clauses`); live uses spaCy dependency
   parse. The optional surface-realizer is **off by default**

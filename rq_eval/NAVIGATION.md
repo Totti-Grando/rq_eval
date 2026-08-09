@@ -52,18 +52,26 @@ Legend for tier: **T1** code · **T2** fixed model (thresholded in code) ·
 Records → `contracts.py`. Atom log + replay → `audit/` (`AtomLogger`,
 `atom_store*.py`, `replay.py::ReplayVerifier`). Formula registry → `scoring/registry.py`.
 
-## RQ §1 — accuracy  → `src/rq_eval/dimensions/accuracy/`
+## RQ §0.3 — shared claim graph  → `src/rq_eval/pipeline/`
+
+| Design step | Tier | File · class |
+|---|---|---|
+| Typed nodes (independent / inference / indexical + binding) | T1 + §1 byproduct | `claim_graph.py::ClaimGraphBuilder`, `ClaimGraph`, `GraphNode` |
+| Edge detection (backward premise-BFS, minimal-complete, numeric) | T1 propose + T2 confirm | `edge_detection.py::EdgeDetector` |
+| Edge-recall harness (the honest error bar, gates Layer 2) | code | `validation/edge_recall.py::EdgeRecallHarness` |
+| Visualization (resolved graph → JSON/PNG diagnostic) | code | `graph_viz.py::GraphVisualizer` |
+
+## RQ §1 — accuracy (two-layer DAG resolution)  → `src/rq_eval/dimensions/accuracy/`
 
 | Design step | Tier | File · class / source |
 |---|---|---|
-| 1 grounded? | T2 | **imported** from groundedness → `groundedness/export.py::GroundednessExport`; consumed in `claim_accuracy.py::ClaimAccuracy._grounded` |
-| 2 source-adequate? | T1/T2 | **imported** from `source_quality/provider.py::SourceQualityProviderImpl` |
-| 3 attributed? | T2 | **imported** from `source_attribution/provider.py::AttributionProviderImpl` |
-| 4 responsive? | T2 | **imported** from relevance → `responsiveness.py::ResponsivenessExport` |
-| 5 Compose (conjunction, weighted mean) | code | `scoring/formulas.py::ConjunctionWeightedMeanFormula` |
-| 6 Residual: unsourced truth-judge | T3 | `claim_accuracy.py` (`residual_truth`) |
-| 6 Residual: inferred → inference-validity | T2* | `stubs.py::InferenceValidityStub` (**stub** — out-of-scope category) |
-| 7 Importance weighting (toggle) | code | `importance.py::ImportanceWeights` |
+| axiom: grounded? | T2 | **imported** from groundedness → `groundedness/export.py::GroundednessExport`; `claim_accuracy.py::ClaimAccuracy._grounded` |
+| axiom: source-adequate? | T1 | **imported** from `source_quality/provider.py::SourceQualityProviderImpl` (supports/corroboration off `S`) |
+| axiom: attributed? (C∩S) | T2 | **imported** from `source_attribution/provider.py::AttributionProviderImpl` |
+| Layer 1 node verdict = AND(3 truth booleans) | code | `claim_accuracy.py` (`axiom` atom) — **responsiveness removed** |
+| Layer 2 DAG rescue (flagged) | code + T2 edges | `accuracy.py::AccuracyDimension._rescue` over the shared `ClaimGraph` (`derived` atom) |
+| Residual: unsourced truth-judge | T3 | `claim_accuracy.py` (`residual_truth`) |
+| Score `successful / total` (per node) | code | `scoring/formulas.py::DagResolutionFormula` |
 | Orchestrator | — | `accuracy.py::AccuracyDimension` (+ `claim_accuracy.py::ClaimAccuracyDeps`) |
 
 ## RQ §2 — completeness  → `src/rq_eval/dimensions/completeness/`
@@ -85,13 +93,14 @@ Records → `contracts.py`. Atom log + replay → `audit/` (`AtomLogger`,
 
 | Design step | Tier | File · class |
 |---|---|---|
-| 1 on-ask primitive + responsive export (on-topic ∧ on-ask, DIVER-QA) | T1+T2 (no judge) | `claim_responsiveness.py::ClaimResponsiveness` (`ClaimSignals`) → `responsiveness.py::ResponsivenessExport` |
-| 2 Edges (marker prior + entailment confirm) | T1+T2 | `edges.py::EdgeBuilder` (`Edge`) |
-| 3 Anchors (on-ask seed + centrality + conformal recall) | T2+code | `anchors.py::AnchorSelector` (`AnchorResult`) |
-| 4 Support tree (depth-graded reachability, max_hops, depth_decay) | code | `tree.py::SupportTree` |
-| 5 Orphan resolution (off-topic / stranded-veracity / background) | T1+T2 | `orphans.py::OrphanResolver`; routes to `providers/consistency.py::ConsistencyProvider` |
-| 6 Depth-graded score + off-ask cap | code | `scoring/formulas.py::RelevanceTreeCappedMeanFormula` |
-| 7 Abstention (decline/unanswerable, reference-grounded) | T3 | `relevance.py::RelevanceDimension._maybe_abstain` |
+| **Layer 1 (default)** on-ask primitive + responsive export (on-topic ∧ on-ask, DIVER-QA) | T1+T2 (no judge) | `claim_responsiveness.py::ClaimResponsiveness` (`ClaimSignals`) → `responsiveness.py::ResponsivenessExport` |
+| Layer 1 score = capped mean of responsive | code | `scoring/formulas.py::RelevanceCappedMeanFormula` |
+| **Layer 2** (`tree_enabled`, off) edges | — | read from the shared `ClaimGraph` (`edges.py::Edge` view; relevance builds none) |
+| Layer 2 Anchors (on-ask seed + centrality + conformal recall) | T2+code | `anchors.py::AnchorSelector` (`AnchorResult`) |
+| Layer 2 Support tree (depth-graded reachability, max_hops, depth_decay) | code | `tree.py::SupportTree` |
+| Layer 2 Orphan resolution (off-topic / stranded-veracity / background) | T1+T2 | `orphans.py::OrphanResolver`; routes to `providers/consistency.py::ConsistencyProvider` |
+| Layer 2 score = depth-graded mean + off-ask cap | code | `scoring/formulas.py::RelevanceTreeCappedMeanFormula` |
+| Abstention (decline/unanswerable, reference-grounded) | T3 | `relevance.py::RelevanceDimension._maybe_abstain` |
 | Method A / B (answer-level diagnostics) | T3g+T2 / T2 | `method_a.py::MethodAReverseQuestions`, `method_b.py::MethodBGuardrail` |
 | Orchestrator | — | `relevance.py::RelevanceDimension` |
 
@@ -123,10 +132,10 @@ the nested/abstractive residual), `TripletStabilityHarness`. Triplet shape:
 
 | Design step | Tier | File · class |
 |---|---|---|
-| 1 Similarity pre-filter | T1 | `prefilter.py::SimilarityPreFilter` |
-| 2 Three-way entailment per triplet | T2 | `graders/grounding_grader.py::GroundingGrader` → `GroundingProvider.entails` |
-| 3 Score `|E|/|total|` | code | `scoring/formulas.py::MeanFormula` |
-| Export (per-claim grounded + confidences) | — | `export.py::GroundednessExport` |
+| 1 Similarity pre-filter (top-`groundedness_k`) | T1 | `prefilter.py::SimilarityPreFilter.select_k` |
+| 2 Per-chunk entailment → support set `S={chunk:E}` | T2 | `groundedness.py::GroundednessDimension._assess_triplet` → `GroundingProvider.entails` |
+| 3 Score `|S≠∅|/|total|` | code | `scoring/formulas.py::MeanFormula` |
+| Export the support set `S` (per-claim chunks + docs) + grounded + confidences | — | `export.py::GroundednessExport` (read by §3/§4) |
 | Orchestrator | — | `groundedness.py::GroundednessDimension` |
 
 ## E&T §2 — hallucination  → `src/rq_eval/dimensions/hallucination/`
@@ -141,21 +150,22 @@ the nested/abstractive residual), `TripletStabilityHarness`. Triplet shape:
 
 | Design step (property) | Tier | File · class |
 |---|---|---|
-| 1–5 reachable / dated&fresh / authored / reputable-domain / corroborated | T1 | `scorer.py::SourceQualityScorer` (domain oracle: `reliability_list.py::ReliabilityList` + `config/reliability_list.yaml`) |
-| 6 Supports the claim | T2 | `scorer.py::SourceQualityScorer` (grounding) |
-| 7 Disinterested (sampled) | T3 | `scorer.py::SourceQualityScorer` |
-| 8 Score mean(properties) → adequate | code | `provider.py::SourceQualityProviderImpl` (accuracy import) |
+| 1–4 reachable / dated&fresh / authored / reputable-domain | T1 | `scorer.py::SourceQualityScorer` (domain oracle: `reliability_list.py::ReliabilityList` + `config/reliability_list.yaml`) |
+| 5 Corroborated (`|distinct docs in S| ≥ min`) | T1 (from `S`) | `scorer.py::SourceQualityScorer` (reads `GroundednessExport`, **no NLI**) |
+| 6 Supports the claim (`S ≠ ∅`) | T1 (from `S`) | `scorer.py::SourceQualityScorer` (imported, **no NLI**) |
+| 7 Disinterested (COI rule + sampled residual) | T1/T3 | `scorer.py::SourceQualityScorer` + `coi.py::CoiRule` |
+| 8 Score mean(properties) → adequate | code | `provider.py::SourceQualityProviderImpl` (accuracy import, per `claim_id`) |
 | Orchestrator | — | `source_quality.py::SourceQualityDimension` |
 
 ## E&T §4 — source_attribution  → `src/rq_eval/dimensions/source_attribution/`
 
 | Design step | Tier | File · class |
 |---|---|---|
-| 1 Per-claim citation support (3/4-way) | T2 | `source_attribution.py` + `labels.py::AttributionLabeler` |
-| 2 ALCE recall + precision | code | `alce.py::AlceScorer` |
-| 3 Precision-favoring + no-citation excluded | code | `source_attribution.py::SourceAttributionDimension` |
+| 1 Resolve cited set `C` (explicit regex + implicit scope) | T1 | `citations.py::resolve_explicit`, `ScopePropagator` |
+| 2 Attribution = set-op `C∩S` over §1's support set (**no NLI**) | code | `source_attribution.py::SourceAttributionDimension` |
+| 3 ALCE recall + precision + `C−S`/`S−C` diagnostics | code | `alce.py::AlceScorer` + `source_attribution.py` |
 | 4 Calibrated uncertainty (→ conformal) | code | `export.py::AttributionExport` → `scoring/conformal.py` |
-| 5 Score = precision; attributed? = Attributable ∧ conformal | code | `provider.py::AttributionProviderImpl` (accuracy import) |
+| 5 attributed? = `C∩S≠∅` ∧ conformal | code | `provider.py::AttributionProviderImpl` (accuracy import) |
 
 ## E&T §5 — conformal factuality  → `src/rq_eval/scoring/conformal.py`
 
