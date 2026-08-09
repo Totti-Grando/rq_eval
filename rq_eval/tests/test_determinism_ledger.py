@@ -30,7 +30,29 @@ _ALLOWED_T3 = {
 _REMOVED = {
     "relevance.on_ask", "relevance.residual",
     "completeness.decidable", "source_quality.disinterest",
+    "accuracy.sq_supports",  # source_quality supports is now read off S (no NLI)
+    "source_attribution.cite_nli",  # attribution is a set-op over S, not a second NLI pass
 }
+
+
+def test_single_graph_and_no_edge_dependency_when_layer2_off(tmp_path: Path) -> None:
+    """G9: one shared graph, inert with both Layer-2 flags off; accuracy is truth-only."""
+    cfg = load_config()
+    assert cfg.accuracy.dag_rescue_enabled is False
+    assert cfg.relevance.tree_enabled is False
+    store = JsonlAtomStore(tmp_path / "aligned.jsonl")
+    result = Evaluator(cfg, store=store, clock=FixedClock()).evaluate(
+        next(c for c in FixtureSuite().cases() if c.name == "aligned").to_input()
+    )
+    # exactly one claim graph, and with both flags off it carries no edges
+    assert result.graph is not None
+    assert result.graph.edges() == []
+    atoms = store.all()
+    # accuracy is truth-only + Layer-1: no responsive dependency, no derived rescue
+    assert not any(a.grader_id.startswith("accuracy.") and a.role == "responsive" for a in atoms)
+    assert not any(a.role == "derived" for a in atoms)
+    # the per-node accuracy verdict is the code-computed axiom (not a judge)
+    assert any(a.role == "axiom" and a.grader_id == "accuracy.axiom" for a in atoms)
 
 
 def test_t3_scoring_surface_is_locked(tmp_path: Path) -> None:
