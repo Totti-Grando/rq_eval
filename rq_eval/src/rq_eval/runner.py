@@ -100,7 +100,7 @@ class Evaluator:
         conformal_gate = None if conformal.abstained else conformal.threshold
         accuracy = AccuracyDimension(
             p, cfg, log, claims, grounded_export=grounded,
-            attribution_conformal_threshold=conformal_gate,
+            attribution_conformal_threshold=conformal_gate, graph=graph,
         ).evaluate(eval_input)
         completeness = CompletenessDimension(p, cfg, log).evaluate(eval_input)
         task_success = TaskSuccessDimension(p, cfg, log).evaluate(eval_input)

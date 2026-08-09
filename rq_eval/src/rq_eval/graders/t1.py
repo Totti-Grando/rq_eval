@@ -86,17 +86,32 @@ class T1Tools:
                 return value * factor
         return value
 
-    def numeric_match(self, a: str, b: str, tolerance: float) -> bool:
-        """True iff both parse to numbers within relative ``tolerance``.
+    def extract_numbers(self, text: str) -> list[float]:
+        """Parse every number in ``text`` (commas, $, %, magnitude words)."""
+        out: list[float] = []
+        for match in _NUM.finditer(text):
+            value = float(match.group().replace(",", ""))
+            tail = text[match.end() :].strip().lower()
+            for suffix, factor in _MAGNITUDE.items():
+                if tail.startswith(suffix):
+                    value *= factor
+                    break
+            out.append(value)
+        return out
 
-        |na - nb| <= tolerance · max(|na|, |nb|); tolerance 0.0 == exact.
-        Returns False if either side has no number.
+    def numeric_match(self, a: str, b: str, tolerance: float) -> bool:
+        """True iff ``a``'s number matches *any* number in ``b`` within ``tolerance``.
+
+        |na - nb| <= tolerance · max(|na|, |nb|); tolerance 0.0 == exact. Checking
+        against every number in ``b`` (not just its first) is what makes the edge
+        correct for multi-figure sources. False if ``a`` has no number.
         """
-        na, nb = self.extract_number(a), self.extract_number(b)
-        if na is None or nb is None:
+        na = self.extract_number(a)
+        if na is None:
             return False
-        scale = max(abs(na), abs(nb))
-        return abs(na - nb) <= tolerance * scale
+        return any(
+            abs(na - nb) <= tolerance * max(abs(na), abs(nb)) for nb in self.extract_numbers(b)
+        )
 
     def citation_member(self, citation_id: str | None, allowed: set[str]) -> bool:
         """True iff ``citation_id`` is a non-empty member of ``allowed``."""

@@ -26,6 +26,7 @@ from rq_eval.dimensions.source_quality.scorer import SourceQualityScorer
 from rq_eval.graders.grounding_grader import GroundingGrader
 from rq_eval.graders.judge_grader import JudgeGrader
 from rq_eval.graders.t1 import T1Tools
+from rq_eval.pipeline.claim_graph import ClaimGraph
 from rq_eval.providers.model_stamp import ModelStamp
 from rq_eval.scoring.bands import BandMapper
 from rq_eval.scoring.formulas import default_registry
@@ -51,10 +52,15 @@ class AccuracyDimension(Dimension):
         claims: list[Claim],
         grounded_export: GroundednessExport | None = None,
         attribution_conformal_threshold: float | None = None,
+        graph: ClaimGraph | None = None,
     ) -> None:
         """Assemble the truth-axiom graders/providers from injected providers + config."""
         self._cfg = cfg
         self._claims = claims
+        self._logger = logger
+        # Layer 2 (DAG derivation-rescue) reads the shared graph only when enabled
+        self._dag_rescue = cfg.accuracy.dag_rescue_enabled
+        self._graph = graph
         stamp = ModelStamp(cfg)
         seed = cfg.seeds.judge
         grounding = GroundingGrader(
@@ -86,14 +92,18 @@ class AccuracyDimension(Dimension):
         self._bands = BandMapper(cfg.thresholds.bands.G, cfg.thresholds.bands.A)
 
     def evaluate(self, eval_input: EvalInput) -> DimensionResult:
-        """Score accuracy = successful / total per node (Layer-1 axiom floor)."""
+        """Score accuracy = successful / total per node (Layer 1 + optional Layer 2)."""
         cited = {c.id: c.text for c in eval_input.context}
         atoms: list[AtomRecord] = []
         for claim in self._claims:
             atoms.extend(self._claim_accuracy.evaluate_claim(claim, eval_input.context, cited))
+        axiom_pass = {a.subject: a.verdict for a in atoms if a.role == "axiom"}
+        rescued = self._rescue(axiom_pass)
+        atoms.extend(rescued)
         score = self._registry.compute(_FORMULA, atoms)
         n = len(self._claims)
-        successful = sum(1 for a in atoms if a.role == "axiom" and a.verdict)
+        axioms = sum(1 for ok in axiom_pass.values() if ok)
+        successful = axioms + len(rescued)
         low, high = WilsonInterval().interval(successful, n)
         return DimensionResult(
             dimension=self.name, score=score, band=self._bands.band(score),
@@ -102,10 +112,43 @@ class AccuracyDimension(Dimension):
             atom_ids=[a.id for a in atoms], formula_id=_FORMULA, abstained=(n == 0),
             extra={
                 "successful_claims": float(successful),
-                # Layer 1: every successful node is an axiom -> ratio is trivially 1.0
-                "axiom_derived_ratio": 1.0 if successful else 0.0,
+                # evidential breadth: how many successes are direct axioms vs derived
+                "axiom_derived_ratio": (axioms / successful) if successful else 0.0,
             },
         )
+
+    def _rescue(self, axiom_pass: dict[str, bool]) -> list[AtomRecord]:
+        """[Layer 2, flagged] Rescue bare-failed claims that resolve to true axioms.
+
+        Roots-first (claims are in answer order; edges point earlier → later), a
+        node is *true* if it is a passing axiom or a **dependent** whose confirmed
+        parents all resolve true (local validity is given by the confirmed edge —
+        a valid step on a false premise stays valid-but-false, localized to the
+        false parent). Emits a ``derived`` atom for each rescued node.
+        """
+        if not self._dag_rescue or self._graph is None:
+            return []
+        resolved: dict[str, bool] = {}
+        rescued: list[AtomRecord] = []
+        for claim in self._claims:
+            if axiom_pass.get(claim.id, False):
+                resolved[claim.id] = True
+                continue
+            parents = self._graph.parents(claim.id)
+            if parents and all(resolved.get(p, False) for p in parents):
+                resolved[claim.id] = True
+                rescued.append(
+                    self._logger.record(
+                        subject=claim.id, role="derived",
+                        question="sub-DAG resolves to true axioms via valid steps?",
+                        tier="code", verdict=True,
+                        evidence=f"parents={sorted(parents)} all-true",
+                        grader_id="accuracy.derived", model="code", model_version="rq_eval",
+                    )
+                )
+            else:
+                resolved[claim.id] = False
+        return rescued
 
     @staticmethod
     def _hash(answer: str, claims: list[Claim]) -> str:
