@@ -90,9 +90,9 @@ def test_bad_domain_source_scores_lower(tmp_path: Path) -> None:
 
 def test_accuracy_source_adequate_traces_to_real_properties(tmp_path: Path) -> None:
     """Accuracy's source-adequate atom now comes from the real provider (no stub)."""
-    from rq_eval.contracts import Claim
+    from rq_eval.contracts import AtomRecord, Claim
     from rq_eval.dimensions.accuracy.accuracy import AccuracyDimension
-    from rq_eval.dimensions.responsiveness import ResponsivenessExport
+    from rq_eval.dimensions.groundedness.export import GroundednessExport
 
     cfg = load_config()
     store = JsonlAtomStore(tmp_path / "acc.jsonl")
@@ -101,14 +101,16 @@ def test_accuracy_source_adequate_traces_to_real_properties(tmp_path: Path) -> N
         id="c1", text="Revenue rose because costs fell.", source_sentence="x", verifiable=True,
         decontextualized=True, extractor_version="claim-extractor-v1", citation="chunk-1",
     )
-    export = ResponsivenessExport()
-    from rq_eval.contracts import AtomRecord
-    export.set("c1", AtomRecord.create(subject="c1", role="responsive", question="r",
-                                       tier="T2", verdict=True))
+    grounded = GroundednessExport()  # S supports c1 via chunk-1 (supports read off S)
+    grounded.add_triplet("t:c1", "E", "c1", {"chunk-1"}, {"reuters.com"})
+    grounded.set("c1", AtomRecord.create(subject="c1", role="grounded", question="g", tier="T2",
+                                         verdict=True), [1.0])
     ctx = [ContextChunk(id="chunk-1", text="Revenue rose because input costs fell.",
                         url="https://reuters.com/x", date="2026-01-01", author="J. Doe",
                         domain="reuters.com")]
-    dim = AccuracyDimension(ProviderFactory(cfg).build(), cfg, logger, [claim], export)
+    dim = AccuracyDimension(
+        ProviderFactory(cfg).build(), cfg, logger, [claim], grounded_export=grounded
+    )
     dim.evaluate(EvalInput(question="q", answer="...", context=ctx))
     # the real property atoms are in the log (not a stub)
     roles = {a.role for a in store.all()}

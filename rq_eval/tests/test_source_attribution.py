@@ -91,15 +91,11 @@ def test_attribution_replays(tmp_path: Path) -> None:
 def test_accuracy_attributed_uses_real_provider(tmp_path: Path) -> None:
     """Right-fact/wrong-citation fails accuracy via the real attribution provider."""
     from rq_eval.dimensions.accuracy.accuracy import AccuracyDimension
-    from rq_eval.dimensions.responsiveness import ResponsivenessExport
 
     cfg = load_config()
     store = JsonlAtomStore(tmp_path / "acc.jsonl")
     logger = AtomLogger(store, FixedClock())
     claim = _claim("c1", "Real Madrid won the Champions League final.", "chunk-2")
-    export = ResponsivenessExport()
-    export.set("c1", AtomRecord.create(subject="c1", role="responsive", question="r",
-                                       tier="T2", verdict=True))
     ctx = [
         ContextChunk(id="chunk-1", text="Real Madrid won the Champions League final."),
         ContextChunk(id="chunk-2", text="Bananas are rich in potassium."),
@@ -107,7 +103,7 @@ def test_accuracy_attributed_uses_real_provider(tmp_path: Path) -> None:
     # S supports c1 via chunk-1, but the author cited chunk-2 -> C∩S = ∅ -> not attributed
     grounded = _grounded({"c1": {"chunk-1"}})
     dim = AccuracyDimension(
-        ProviderFactory(cfg).build(), cfg, logger, [claim], export, grounded_export=grounded
+        ProviderFactory(cfg).build(), cfg, logger, [claim], grounded_export=grounded
     )
     dim.evaluate(EvalInput(question="q", answer="...", context=ctx))
     attributed = next(a for a in store.all() if a.role == "attributed")

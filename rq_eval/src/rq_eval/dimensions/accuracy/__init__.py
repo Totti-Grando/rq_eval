@@ -1,6 +1,5 @@
-"""§1 accuracy dimension — derived over the cached claims."""
+"""§1 accuracy dimension — DAG resolution over the cached claims (RQ §1)."""
 
 from rq_eval.dimensions.accuracy.accuracy import AccuracyDimension
-from rq_eval.dimensions.accuracy.importance import ImportanceWeights
 
-__all__ = ["AccuracyDimension", "ImportanceWeights"]
+__all__ = ["AccuracyDimension"]

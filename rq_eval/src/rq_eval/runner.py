@@ -87,7 +87,7 @@ class Evaluator:
         groundedness = GroundednessDimension(p, cfg, log, triplets, grounded).evaluate(eval_input)
         conformal_gate = None if conformal.abstained else conformal.threshold
         accuracy = AccuracyDimension(
-            p, cfg, log, claims, responsive, grounded_export=grounded,
+            p, cfg, log, claims, grounded_export=grounded,
             attribution_conformal_threshold=conformal_gate,
         ).evaluate(eval_input)
         completeness = CompletenessDimension(p, cfg, log).evaluate(eval_input)

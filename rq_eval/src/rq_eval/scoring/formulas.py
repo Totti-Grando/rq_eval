@@ -65,6 +65,32 @@ class ConjunctionWeightedMeanFormula(Formula):
         return sum(weight[s] for s, ok in correct.items() if ok) / total
 
 
+class DagResolutionFormula(Formula):
+    """§1 accuracy: ``successful nodes / total nodes`` over the claim graph.
+
+    Counts **per node**, equal weight. A claim node succeeds if it is a passing
+    ``axiom`` (Layer 1: grounded ∧ source-adequate ∧ attributed) **or**, when DAG
+    rescue is on, a ``derived`` node whose sub-DAG resolves to passing axioms
+    (Layer 2). The formula reads the code-emitted per-node verdicts — role
+    ``axiom`` OR ``derived`` — so branching/convergence/diamonds count once and
+    the score replays purely from atoms.
+    """
+
+    formula_id = "dag_resolution"
+
+    def compute(self, atoms: list[AtomRecord]) -> float:
+        """Mean over per-node verdicts (a node is derived-rescued OR a passing axiom)."""
+        node: dict[str, bool] = {}
+        for a in atoms:
+            if a.role == "axiom":
+                node.setdefault(a.subject, a.verdict)
+            elif a.role == "derived" and a.verdict:  # Layer-2 rescue overrides a bare axiom
+                node[a.subject] = True
+        if not node:
+            return 0.0
+        return sum(1 for ok in node.values() if ok) / len(node)
+
+
 class RelevanceCappedMeanFormula(Formula):
     """§3 relevance: mean of responsive atoms, off-ask capped, abstain-aware.
 
@@ -175,6 +201,7 @@ def default_registry() -> FormulaRegistry:
     registry.register(MeanFormula())
     registry.register(WeightedMeanFormula())
     registry.register(ConjunctionWeightedMeanFormula())
+    registry.register(DagResolutionFormula())
     registry.register(RelevanceCappedMeanFormula())
     registry.register(RelevanceTreeCappedMeanFormula())
     registry.register(AchievedRatioFormula())
