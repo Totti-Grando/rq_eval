@@ -20,6 +20,8 @@ an atom; the pinned reference version is `pins.extractor_version`.
 - `ClaimTripletExtractor` — [T1 parse-first, T3-gen residual] (Evidence §0) decompose each claim into RefChecker-style S-P-O `Triplet`s (pinned by `triplet_extractor_version`).
 - `TripletStabilityHarness` — triplet-id set agreement across re-runs.
 - `ClaimGraph` / `ClaimGraphBuilder` — [T1 + §1 byproduct] (RQ §0.3) the **one shared claim graph** (`networkx.DiGraph`): nodes typed independent / inference-dependent (empty support set `S`) / indexical-dependent (deixis, bound to a sibling filler or flagged `context-incomplete`); typed edges `{supports, derives, binds, contradicts}` added by edge detection. Built once, read by accuracy (derivation) + relevance (reachability) — no dimension rebuilds it.
+- `EdgeDetector` — [T1 propose + T2 confirm] backward premise-BFS (earlier-only candidates → acyclic); marker-propose → topical-narrow → `entails(⋀parents, claim) ≥ edge_tau` confirm, greedy minimal-complete set; numeric-provenance convergence. Adds support edges to the shared graph.
+- `GraphVisualizer` — [code] a view over the resolved graph: JSON node-link artifact (axioms/derived green, failed red, contradiction edges red) + an optional lazy matplotlib PNG. Reads logged verdicts only; no computation.
 
 **Calculations:**
 - `stability = |∩ claim-id sets| / |∪ claim-id sets|` over `pipeline.stability_runs`

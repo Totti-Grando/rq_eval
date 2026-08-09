@@ -31,7 +31,8 @@ packages = ["rq_eval"]
 python_version = "3.12"
 # Live-only third-party libs have no stubs and are import-guarded; don't fail on them.
 [[tool.mypy.overrides]]
-module = ["boto3", "botocore.*", "spacy", "coreferee", "ragas.*", "torch", "fairseq.*"]
+module = ["boto3", "botocore.*", "spacy", "coreferee", "ragas.*", "torch", "fairseq.*",
+          "matplotlib", "matplotlib.*"]
 ignore_missing_imports = true
 # networkx (the shared ClaimGraph) pulls numpy transitively; numpy's stubs use
 # 3.12+ syntax that our 3.11 target can't parse, so skip following it.
