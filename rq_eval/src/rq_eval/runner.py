@@ -31,6 +31,7 @@ from rq_eval.dimensions.source_quality.source_quality import SourceQualityDimens
 from rq_eval.dimensions.task_success.task_success import TaskSuccessDimension
 from rq_eval.graders.t1 import T1Tools
 from rq_eval.pipeline.claim_graph import ClaimGraph, ClaimGraphBuilder
+from rq_eval.pipeline.edge_detection import EdgeDetector
 from rq_eval.pipeline.pipeline import ClaimPipeline
 from rq_eval.pipeline.triplets import ClaimTripletExtractor
 from rq_eval.providers.factory import ProviderFactory, Providers
@@ -87,9 +88,15 @@ class Evaluator:
 
         relevance = RelevanceDimension(p, cfg, log, claims, responsive).evaluate(eval_input)
         groundedness = GroundednessDimension(p, cfg, log, triplets, grounded).evaluate(eval_input)
-        # §0.3: the one shared claim graph, built once after S is known (inert until a
-        # Layer-2 flag reads it — accuracy derivation / relevance reachability).
+        # §0.3: the one shared claim graph, built once after S is known. Edges are
+        # detected only when a Layer-2 flag will read them (accuracy DAG-rescue /
+        # relevance tree); otherwise the graph stays a typed-node scaffold.
         graph = ClaimGraphBuilder(T1Tools(), p.nlp, grounded).build(claims)
+        if cfg.accuracy.dag_rescue_enabled or cfg.relevance.tree_enabled:
+            EdgeDetector(
+                p.grounding, T1Tools(), cfg.graph.edge_tau, cfg.graph.topical_min,
+                cfg.graph.numeric_tolerance,
+            ).detect(claims, graph)
         conformal_gate = None if conformal.abstained else conformal.threshold
         accuracy = AccuracyDimension(
             p, cfg, log, claims, grounded_export=grounded,

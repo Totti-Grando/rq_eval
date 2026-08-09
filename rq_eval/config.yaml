@@ -46,6 +46,7 @@ groundedness:               # §1 per-chunk support-set pass (Evidence §1)
 accuracy:
   importance_weighting: true # weight claims by vital/okay from completeness units
   numeric_tolerance: 0.0     # relative tolerance for numeric exact-match (0 == strict)
+  dag_rescue_enabled: false  # Layer 2 DAG derivation-rescue (§1); off until edge-recall clears
   residual_policy: nexa      # nexa | ravenpack (nexa -> source-adequacy~1, residue~0)
 
 task_success:
@@ -82,6 +83,7 @@ relevance:
   anchor_centrality_min: 2   # in-degree (# supporting premises) to promote a claim to anchor
   max_hops: 3                # bound tree depth from an anchor (long weak chains can't launder)
   depth_decay: 0.5           # per-hop relevance weight = depth_decay ** depth
+  tree_enabled: false        # Layer 2 support-tree over the shared graph (§3); off until edge-recall clears
 
 pipeline:                    # §0 claim-extraction pipeline
   stability_runs: 3          # re-run extraction N times; report claim-set agreement
@@ -89,6 +91,11 @@ pipeline:                    # §0 claim-extraction pipeline
 extraction:                  # §0.2 deterministic claim extraction (parse-first)
   realizer_enabled: false    # optional pinned [T2] surface-realizer; off unless the
                              # realizer-impact test shows the NLI verifier needs it
+
+graph:                       # §0.3 shared claim-graph edge detection
+  edge_tau: 0.5              # entails(AND parents, claim) >= this confirms a support edge
+  topical_min: 0.3          # min question-key-term overlap to be a candidate parent
+  numeric_tolerance: 0.0     # relative tolerance for numeric-provenance parent detection
 
 conformal:                   # §5 conformal factuality (statistical guarantee)
   alpha: 0.05                # error budget; target confidence = 1 - alpha

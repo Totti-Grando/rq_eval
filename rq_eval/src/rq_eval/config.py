@@ -96,6 +96,8 @@ class AccuracyConfig(BaseModel):
     importance_weighting: bool
     numeric_tolerance: float = Field(ge=0.0)
     residual_policy: Literal["nexa", "ravenpack"]
+    # Layer 2 (DAG derivation-rescue, §1/§0.3): off until edge-recall clears the bar
+    dag_rescue_enabled: bool = False
 
 
 class TaskSuccessConfig(BaseModel):
@@ -158,6 +160,8 @@ class RelevanceConfig(BaseModel):
     anchor_centrality_min: int = Field(ge=1)  # in-degree to promote a claim to anchor
     max_hops: int = Field(ge=1)  # bound tree depth from an anchor
     depth_decay: float = Field(gt=0.0, le=1.0)  # per-hop relevance weight = decay ** depth
+    # Layer 2 (support-tree reachability over the shared graph, §3): off until edge-recall clears
+    tree_enabled: bool = False
 
 
 class PipelineConfig(BaseModel):
@@ -165,6 +169,15 @@ class PipelineConfig(BaseModel):
 
     model_config = _Strict
     stability_runs: int = Field(ge=1)
+
+
+class GraphConfig(BaseModel):
+    """§0.3 knobs — the shared claim graph's edge detection."""
+
+    model_config = _Strict
+    edge_tau: float = Field(ge=0.0, le=1.0)  # entails(⋀parents, claim) >= this confirms an edge
+    topical_min: float = Field(ge=0.0, le=1.0)  # min key-term overlap to be a candidate parent
+    numeric_tolerance: float = Field(ge=0.0)  # relative tolerance for numeric-provenance parents
 
 
 class ExtractionConfig(BaseModel):
@@ -248,6 +261,7 @@ class Config(BaseModel):
     relevance: RelevanceConfig
     pipeline: PipelineConfig
     extraction: ExtractionConfig
+    graph: GraphConfig
     conformal: ConformalConfig
     pins: PinsConfig
     seeds: SeedsConfig
