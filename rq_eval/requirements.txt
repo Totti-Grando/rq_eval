@@ -8,6 +8,7 @@
 
 pydantic==2.13.4
 PyYAML==6.0.3
+networkx==3.6.1               # the shared ClaimGraph DiGraph (§0.3) — pure-Python, offline-safe
 # (numpy/scipy intentionally omitted — all statistics are stdlib `math`)
 
 # --- dev / test toolchain ---
@@ -16,3 +17,4 @@ hypothesis==6.164.0
 mypy==2.3.0
 ruff==0.16.1
 types-PyYAML==6.0.12.20260724
+types-networkx==3.6.1.20260728

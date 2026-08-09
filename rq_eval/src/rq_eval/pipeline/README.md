@@ -19,6 +19,7 @@ an atom; the pinned reference version is `pins.extractor_version`.
 - `ClaimPipeline` — orchestrates the steps; returns `PipelineResult`.
 - `ClaimTripletExtractor` — [T1 parse-first, T3-gen residual] (Evidence §0) decompose each claim into RefChecker-style S-P-O `Triplet`s (pinned by `triplet_extractor_version`).
 - `TripletStabilityHarness` — triplet-id set agreement across re-runs.
+- `ClaimGraph` / `ClaimGraphBuilder` — [T1 + §1 byproduct] (RQ §0.3) the **one shared claim graph** (`networkx.DiGraph`): nodes typed independent / inference-dependent (empty support set `S`) / indexical-dependent (deixis, bound to a sibling filler or flagged `context-incomplete`); typed edges `{supports, derives, binds, contradicts}` added by edge detection. Built once, read by accuracy (derivation) + relevance (reachability) — no dimension rebuilds it.
 
 **Calculations:**
 - `stability = |∩ claim-id sets| / |∪ claim-id sets|` over `pipeline.stability_runs`

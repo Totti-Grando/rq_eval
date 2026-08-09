@@ -46,6 +46,15 @@ _DISCOURSE = re.compile(
 # nested/abstractive predicates a positional parse can't cleanly triple ->
 # routed to the pinned generator residual (Evidence §0)
 _NESTING = re.compile(r"\b(that|which|who|whom|whose|whether)\b", re.IGNORECASE)
+# deictic adverbs marking an indexical (incomplete) proposition (§0.3 type-3)
+_DEIXIS = re.compile(r"\b(here|there|now|then|today|yesterday|tomorrow|currently|recently)\b",
+                     re.IGNORECASE)
+# a spatiotemporal filler in a sibling: a date/time, or a Capitalized place/entity
+_FILLER = re.compile(r"\b(\d{4}-\d{2}-\d{2}|\d{1,2}:\d{2}|[A-Z][a-zA-Z]+)\b")
+# capitalized function words that open sentences — never a real entity filler
+_NOT_FILLER = frozenset(
+    "The A An It This That These Those They He She We You I In On At For And But Or".split()
+)
 _WORD = re.compile(r"[a-z0-9]+")
 _STOP = frozenset(
     "a an the of to in on for and or is are was were be been it its this that with as at by "
@@ -135,6 +144,27 @@ class T1Tools:
         noisy on its own, so an edge is confirmed only by entailment (§3).
         """
         return _DISCOURSE.search(text) is not None
+
+    def is_indexical(self, text: str) -> bool:
+        """[T1] True iff the claim is an *incomplete* proposition (§0.3 type-3).
+
+        A leading unresolved pronoun ("it is dark") or a deictic adverb
+        ("here"/"now"/…) marks a free spatiotemporal/deictic slot the claim needs
+        a sibling to fill before it is groundable. (Live uses spaCy POS/dep tags.)
+        """
+        return self.has_leading_pronoun(text) or _DEIXIS.search(text) is not None
+
+    def find_filler(self, text: str) -> str | None:
+        """[T1] A spatiotemporal filler (date/time/Capitalized entity) in ``text``, or None.
+
+        Skips capitalized function words that merely open a sentence ("The", "It", …)
+        so the filler is a real place/date/entity, not sentence casing.
+        """
+        for m in _FILLER.finditer(text):
+            token = m.group(1)
+            if token not in _NOT_FILLER:
+                return token
+        return None
 
     def parse_triplet(self, text: str) -> tuple[str, str, str] | None:
         """[T1] Parse a clause into a subject|predicate|object tuple, or None.

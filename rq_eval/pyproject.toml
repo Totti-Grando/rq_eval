@@ -26,10 +26,18 @@ addopts = "-q"
 strict = true
 mypy_path = "src"
 packages = ["rq_eval"]
-python_version = "3.11"
+# 3.12 so numpy's stubs (pulled transitively by networkx) parse; ruff still
+# enforces the 3.11 runtime target on our own source (target-version = py311).
+python_version = "3.12"
 # Live-only third-party libs have no stubs and are import-guarded; don't fail on them.
 [[tool.mypy.overrides]]
 module = ["boto3", "botocore.*", "spacy", "coreferee", "ragas.*", "torch", "fairseq.*"]
+ignore_missing_imports = true
+# networkx (the shared ClaimGraph) pulls numpy transitively; numpy's stubs use
+# 3.12+ syntax that our 3.11 target can't parse, so skip following it.
+[[tool.mypy.overrides]]
+module = ["numpy", "numpy.*", "scipy", "scipy.*"]
+follow_imports = "skip"
 ignore_missing_imports = true
 
 [tool.ruff]

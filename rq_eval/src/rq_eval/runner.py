@@ -30,6 +30,7 @@ from rq_eval.dimensions.source_attribution.source_attribution import SourceAttri
 from rq_eval.dimensions.source_quality.source_quality import SourceQualityDimension
 from rq_eval.dimensions.task_success.task_success import TaskSuccessDimension
 from rq_eval.graders.t1 import T1Tools
+from rq_eval.pipeline.claim_graph import ClaimGraph, ClaimGraphBuilder
 from rq_eval.pipeline.pipeline import ClaimPipeline
 from rq_eval.pipeline.triplets import ClaimTripletExtractor
 from rq_eval.providers.factory import ProviderFactory, Providers
@@ -52,6 +53,7 @@ class EvaluationResult:
     conformal: ConformalResult
     atoms: list[AtomRecord] = field(default_factory=list)
     summary: str = ""  # read-only ExplanationJudge prose; never an input to any score
+    graph: ClaimGraph | None = None  # the one shared claim graph (§0.3); read by projections
 
 
 class Evaluator:
@@ -85,6 +87,9 @@ class Evaluator:
 
         relevance = RelevanceDimension(p, cfg, log, claims, responsive).evaluate(eval_input)
         groundedness = GroundednessDimension(p, cfg, log, triplets, grounded).evaluate(eval_input)
+        # §0.3: the one shared claim graph, built once after S is known (inert until a
+        # Layer-2 flag reads it — accuracy derivation / relevance reachability).
+        graph = ClaimGraphBuilder(T1Tools(), p.nlp, grounded).build(claims)
         conformal_gate = None if conformal.abstained else conformal.threshold
         accuracy = AccuracyDimension(
             p, cfg, log, claims, grounded_export=grounded,
@@ -112,7 +117,7 @@ class Evaluator:
         summary = p.explanation.summarize(results, atoms)
         return EvaluationResult(
             results=results, claims=claims, stability=pres.stability, store=self._store,
-            conformal=conformal, atoms=atoms, summary=summary,
+            conformal=conformal, atoms=atoms, summary=summary, graph=graph,
         )
 
     def _calibrate_conformal(self) -> ConformalResult:
